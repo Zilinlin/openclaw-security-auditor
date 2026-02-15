@@ -1,1 +1,1 @@
-"""Tests for OpenClaw Security Auditor."""
+# OpenClaw Security Auditor Tests

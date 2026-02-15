@@ -14,6 +14,15 @@ from .scanners import (
     SecretScanner,
     Severity,
 )
+from .detectors import (
+    DETECTORS,
+    WebSocketOriginDetector,
+    PromptInjectionDetector,
+    APIHookBypassDetector,
+    AuthWeaknessDetector,
+    DetectorSeverity,
+    VulnerabilityStatus,
+)
 
 
 class Colors:
@@ -35,16 +44,18 @@ def colorize(text: str, color: str) -> str:
     return text
 
 
-def severity_color(severity: Severity) -> str:
+def severity_color(severity) -> str:
     """Get color for severity level."""
+    # Handle both Severity and DetectorSeverity
+    severity_value = severity.value if hasattr(severity, 'value') else str(severity)
     colors = {
-        Severity.CRITICAL: Colors.RED + Colors.BOLD,
-        Severity.HIGH: Colors.RED,
-        Severity.MEDIUM: Colors.YELLOW,
-        Severity.LOW: Colors.CYAN,
-        Severity.INFO: Colors.BLUE,
+        "critical": Colors.RED + Colors.BOLD,
+        "high": Colors.RED,
+        "medium": Colors.YELLOW,
+        "low": Colors.CYAN,
+        "info": Colors.BLUE,
     }
-    return colors.get(severity, Colors.RESET)
+    return colors.get(severity_value.lower(), Colors.RESET)
 
 
 def print_banner():
@@ -60,25 +71,39 @@ def print_banner():
 
 def print_finding(finding, index: int):
     """Print a single finding in human-readable format."""
-    severity_str = colorize(
-        f"[{finding.severity.value.upper()}]",
-        severity_color(finding.severity)
-    )
+    # Handle both scanner findings and detector findings
+    if hasattr(finding, 'severity') and finding.severity:
+        severity_value = finding.severity.value if hasattr(finding.severity, 'value') else str(finding.severity)
+        severity_str = colorize(
+            f"[{severity_value.upper()}]",
+            severity_color(finding.severity)
+        )
+    else:
+        severity_str = colorize("[INFO]", Colors.BLUE)
 
     print(f"\n{index}. {severity_str} {colorize(finding.title, Colors.BOLD)}")
 
-    if finding.cve:
+    if hasattr(finding, 'cve') and finding.cve:
         print(f"   CVE: {colorize(finding.cve, Colors.MAGENTA)}")
 
-    if finding.location:
+    if hasattr(finding, 'location') and finding.location:
         print(f"   Location: {finding.location}")
 
-    print(f"   {finding.description}")
+    if hasattr(finding, 'status') and finding.status:
+        status_value = finding.status.value if hasattr(finding.status, 'value') else str(finding.status)
+        status_color = Colors.RED if status_value == "vulnerable" else Colors.GREEN
+        print(f"   Status: {colorize(status_value.upper(), status_color)}")
 
-    if finding.remediation:
+    if finding.description:
+        print(f"   {finding.description}")
+
+    if hasattr(finding, 'evidence') and finding.evidence:
+        print(f"   {colorize('Evidence:', Colors.YELLOW)} {finding.evidence}")
+
+    if hasattr(finding, 'remediation') and finding.remediation:
         print(f"   {colorize('Remediation:', Colors.GREEN)} {finding.remediation}")
 
-    if finding.references:
+    if hasattr(finding, 'references') and finding.references:
         print(f"   References:")
         for ref in finding.references:
             print(f"     - {ref}")
@@ -87,26 +112,30 @@ def print_finding(finding, index: int):
 def print_summary(results: list):
     """Print scan summary."""
     total_findings = sum(len(r.findings) for r in results)
-    critical = sum(
-        sum(1 for f in r.findings if f.severity == Severity.CRITICAL)
-        for r in results
-    )
-    high = sum(
-        sum(1 for f in r.findings if f.severity == Severity.HIGH)
-        for r in results
-    )
-    medium = sum(
-        sum(1 for f in r.findings if f.severity == Severity.MEDIUM)
-        for r in results
-    )
-    low = sum(
-        sum(1 for f in r.findings if f.severity == Severity.LOW)
-        for r in results
-    )
-    info = sum(
-        sum(1 for f in r.findings if f.severity == Severity.INFO)
-        for r in results
-    )
+
+    # Count by severity (handle both Severity and DetectorSeverity)
+    critical = 0
+    high = 0
+    medium = 0
+    low = 0
+    info = 0
+
+    for r in results:
+        for f in r.findings:
+            if hasattr(f, 'severity') and f.severity:
+                sev = f.severity.value if hasattr(f.severity, 'value') else str(f.severity)
+                if sev.lower() == 'critical':
+                    critical += 1
+                elif sev.lower() == 'high':
+                    high += 1
+                elif sev.lower() == 'medium':
+                    medium += 1
+                elif sev.lower() == 'low':
+                    low += 1
+                else:
+                    info += 1
+            else:
+                info += 1
 
     print("\n" + "=" * 60)
     print(colorize("SCAN SUMMARY", Colors.BOLD))
@@ -126,10 +155,35 @@ def print_summary(results: list):
 
     if critical > 0 or high > 0:
         print(colorize(
-            "\n⚠️  Critical or high severity issues found! Immediate action required.",
+            "\nCritical or high severity issues found! Immediate action required.",
             Colors.RED + Colors.BOLD
         ))
 
+
+def print_detector_summary(results: list):
+    """Print detector-specific summary."""
+    vulnerable_count = sum(1 for r in results if r.is_vulnerable)
+    total = len(results)
+
+    print("\n" + "=" * 60)
+    print(colorize("DETECTION SUMMARY", Colors.BOLD))
+    print("=" * 60)
+
+    if vulnerable_count > 0:
+        print(colorize(
+            f"\nVulnerable: {vulnerable_count}/{total} detectors found issues",
+            Colors.RED
+        ))
+    else:
+        print(colorize(
+            f"\nNo vulnerabilities detected ({total} checks performed)",
+            Colors.GREEN
+        ))
+
+
+# =============================================================================
+# STATIC SCANNER COMMANDS
+# =============================================================================
 
 def cmd_scan(args):
     """Run all or selected scanners."""
@@ -264,6 +318,193 @@ def cmd_network(args):
     return 1 if result.has_critical or result.has_high else 0
 
 
+# =============================================================================
+# DYNAMIC DETECTOR COMMANDS
+# =============================================================================
+
+def cmd_detect(args):
+    """Run all or selected dynamic detectors."""
+    results = []
+
+    # Determine which detectors to run
+    if args.detectors:
+        detector_names = [d.strip() for d in args.detectors.split(",")]
+    else:
+        detector_names = list(DETECTORS.keys())
+
+    for detector_name in detector_names:
+        if detector_name not in DETECTORS:
+            print(f"Unknown detector: {detector_name}", file=sys.stderr)
+            continue
+
+        detector_class = DETECTORS[detector_name]
+        detector = detector_class()
+
+        if not args.json:
+            print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+
+        try:
+            result = detector.detect(
+                host=args.host,
+                port=args.port,
+                auth_token=args.token,
+            )
+            results.append(result)
+        except Exception as e:
+            print(colorize(f"Error running {detector_name}: {e}", Colors.RED))
+
+    # Output results
+    if args.json:
+        output = {
+            "target": f"{args.host}:{args.port}",
+            "results": [r.to_dict() for r in results],
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        finding_index = 1
+        for result in results:
+            if result.errors:
+                for error in result.errors:
+                    print(colorize(f"Error: {error}", Colors.RED))
+
+            for finding in result.findings:
+                print_finding(finding, finding_index)
+                finding_index += 1
+
+        print_detector_summary(results)
+
+    # Exit with error code if vulnerabilities found
+    if any(r.is_vulnerable for r in results):
+        return 1
+    return 0
+
+
+def cmd_detect_websocket(args):
+    """Run WebSocket Origin bypass detector."""
+    detector = WebSocketOriginDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}")
+        print(f"Reference: {detector.cve}")
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+        use_ssl=args.ssl,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+    return 1 if result.is_vulnerable else 0
+
+
+def cmd_detect_injection(args):
+    """Run prompt injection detector."""
+    detector = PromptInjectionDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}{args.endpoint}")
+        if args.payloads:
+            print(f"Payloads: {args.payloads}")
+
+    payloads = args.payloads.split(",") if args.payloads else None
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+        endpoint=args.endpoint,
+        auth_token=args.token,
+        payloads=payloads,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+        # Print payload stats
+        if result.metadata.get("vulnerable_count"):
+            print(colorize(
+                f"\nVulnerable to {result.metadata['vulnerable_count']}/{result.metadata['total_tested']} payloads",
+                Colors.RED
+            ))
+
+    return 1 if result.is_vulnerable else 0
+
+
+def cmd_detect_api_bypass(args):
+    """Run API hook bypass detector."""
+    detector = APIHookBypassDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}")
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+        auth_token=args.token,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+    return 1 if result.is_vulnerable else 0
+
+
+def cmd_detect_auth(args):
+    """Run authentication weakness detector."""
+    detector = AuthWeaknessDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}")
+        print(f"Reference: {detector.cve}")
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+    return 1 if result.is_vulnerable else 0
+
+
+# =============================================================================
+# MAIN ENTRY POINT
+# =============================================================================
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -278,12 +519,16 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
+    # =========================================================================
+    # STATIC ANALYSIS COMMANDS
+    # =========================================================================
+
     # scan command
-    scan_parser = subparsers.add_parser("scan", help="Run security scan")
+    scan_parser = subparsers.add_parser("scan", help="Run static security scan")
     scan_parser.add_argument("target", help="Path to OpenClaw installation")
     scan_parser.add_argument(
         "--checks",
-        help="Comma-separated list of checks to run (config,cve,secrets,network)",
+        help="Comma-separated list of checks (config,cve,secrets,network)",
     )
     scan_parser.add_argument("--version", help="OpenClaw version (for CVE checks)")
     scan_parser.add_argument("--host", help="Host for network checks")
@@ -297,7 +542,7 @@ def main():
 
     # config command
     config_parser = subparsers.add_parser("config", help="Scan configuration files")
-    config_parser.add_argument("target", help="Path to OpenClaw installation or config file")
+    config_parser.add_argument("target", help="Path to OpenClaw installation")
 
     # cve command
     cve_parser = subparsers.add_parser("cve", help="Check for known CVEs")
@@ -318,6 +563,96 @@ def main():
         help="Port to check (default: 18789)",
     )
 
+    # =========================================================================
+    # DYNAMIC DETECTION COMMANDS
+    # =========================================================================
+
+    # detect command (run all detectors)
+    detect_parser = subparsers.add_parser(
+        "detect",
+        help="Run dynamic vulnerability detection"
+    )
+    detect_parser.add_argument("--host", required=True, help="Target host")
+    detect_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    detect_parser.add_argument("--token", help="Authentication token")
+    detect_parser.add_argument(
+        "--detectors",
+        help="Comma-separated list (websocket,prompt_injection,api_bypass,auth)",
+    )
+
+    # detect-websocket command
+    ws_parser = subparsers.add_parser(
+        "detect-websocket",
+        help="Test WebSocket Origin bypass (CVE-2026-25253)"
+    )
+    ws_parser.add_argument("--host", required=True, help="Target host")
+    ws_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    ws_parser.add_argument("--ssl", action="store_true", help="Use WSS (WebSocket Secure)")
+
+    # detect-injection command
+    injection_parser = subparsers.add_parser(
+        "detect-injection",
+        help="Test prompt injection vulnerabilities"
+    )
+    injection_parser.add_argument("--host", required=True, help="Target host")
+    injection_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    injection_parser.add_argument(
+        "--endpoint",
+        default="/v1/chat/completions",
+        help="API endpoint (default: /v1/chat/completions)",
+    )
+    injection_parser.add_argument("--token", help="Authentication token")
+    injection_parser.add_argument(
+        "--payloads",
+        help="Comma-separated payload names to test",
+    )
+
+    # detect-api-bypass command
+    api_parser = subparsers.add_parser(
+        "detect-api-bypass",
+        help="Test API security hook bypass"
+    )
+    api_parser.add_argument("--host", required=True, help="Target host")
+    api_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    api_parser.add_argument("--token", help="Authentication token")
+
+    # detect-auth command
+    auth_parser = subparsers.add_parser(
+        "detect-auth",
+        help="Test authentication weaknesses (CVE-2026-25157)"
+    )
+    auth_parser.add_argument("--host", required=True, help="Target host")
+    auth_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+
+    # =========================================================================
+    # PARSE AND EXECUTE
+    # =========================================================================
+
     args = parser.parse_args()
 
     if not args.command:
@@ -330,11 +665,18 @@ def main():
 
     # Route to appropriate command
     commands = {
+        # Static analysis
         "scan": cmd_scan,
         "config": cmd_config,
         "cve": cmd_cve,
         "secrets": cmd_secrets,
         "network": cmd_network,
+        # Dynamic detection
+        "detect": cmd_detect,
+        "detect-websocket": cmd_detect_websocket,
+        "detect-injection": cmd_detect_injection,
+        "detect-api-bypass": cmd_detect_api_bypass,
+        "detect-auth": cmd_detect_auth,
     }
 
     return commands[args.command](args)

@@ -1,0 +1,67 @@
+{
+  "name": "security-monitor",
+  "version": "0.1.0",
+  "description": "Runtime security monitoring for OpenClaw agents",
+  "author": "Zilinlin",
+  "repository": "https://github.com/Zilinlin/openclaw-security-auditor",
+  "license": "MIT",
+  "keywords": [
+    "security",
+    "monitoring",
+    "integrity",
+    "canary",
+    "anomaly"
+  ],
+  "compatibility": {
+    "openclaw": ">=2026.1.0"
+  },
+  "permissions": [
+    "file:read",
+    "file:write",
+    "network:egress",
+    "config:read"
+  ],
+  "entry": "monitor/main.py",
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "integrity": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "files": {"type": "array", "items": {"type": "string"}},
+          "check_interval": {"type": "integer", "default": 300},
+          "auto_restore": {"type": "boolean", "default": false}
+        }
+      },
+      "canary": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "format": {"type": "string", "default": "CANARY-{id}"},
+          "inject_count": {"type": "integer", "default": 3}
+        }
+      },
+      "anomaly": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "rate_limits": {"type": "object"},
+          "egress_whitelist": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "cve_feed": {
+        "type": "object",
+        "properties": {
+          "enabled": {"type": "boolean", "default": true},
+          "check_interval": {"type": "integer", "default": 3600},
+          "sources": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  },
+  "references": [
+    "https://github.com/prompt-security/clawsec",
+    "https://github.com/openclaw/openclaw/issues/4840"
+  ]
+}
