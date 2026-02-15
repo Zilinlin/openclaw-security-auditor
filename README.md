@@ -1,28 +1,56 @@
 # OpenClaw Security Auditor
 
-A security auditing tool for [OpenClaw](https://github.com/openclaw/openclaw) deployments. Detect misconfigurations, known CVEs, exposed secrets, and network exposure issues.
+A comprehensive security auditing toolkit for [OpenClaw](https://github.com/openclaw/openclaw) deployments. Perform static analysis, dynamic vulnerability detection, and runtime monitoring.
 
-[中文文档](#中文文档)
+## Background
 
-## Why This Tool?
+Recent security research has revealed critical vulnerabilities in OpenClaw deployments:
 
-Recent security research revealed **135,000+ OpenClaw instances exposed to the internet**, with 63% vulnerable to known exploits. This tool helps you audit your deployment before attackers do.
+- **135,000+** instances exposed to the public internet [[1]](#references)
+- **63%** of deployments vulnerable to known exploits [[1]](#references)
+- **12,812** instances exploitable via Remote Code Execution [[2]](#references)
+- **93.4%** vulnerable to authentication bypass attacks [[3]](#references)
 
-### Known Vulnerabilities Detected
-
-| CVE | Severity | Description |
-|-----|----------|-------------|
-| CVE-2026-25253 | High | Remote Code Execution |
-| CVE-2026-25157 | High | Authentication Bypass |
-| CVE-2026-24763 | High | Privilege Escalation |
+This tool helps security teams and developers audit their OpenClaw deployments before attackers do.
 
 ## Features
 
-- **Config Scanner** - Detect insecure default configurations (e.g., binding to `0.0.0.0`)
-- **CVE Detector** - Check for known high-severity vulnerabilities
-- **Secret Scanner** - Find exposed API keys and credentials
-- **Network Exposure Check** - Detect if your instance is publicly accessible
-- **Prompt Injection Tester** - Test agent resilience against injection attacks
+### Static Analysis (Implemented)
+
+| Scanner | Description | Reference |
+|---------|-------------|-----------|
+| **Config Scanner** | Detect insecure defaults (e.g., `bind: 0.0.0.0`) | [[4]](#references) |
+| **CVE Detector** | Check for known vulnerabilities | [[5]](#references) |
+| **Secret Scanner** | Find exposed API keys and credentials | [[6]](#references) |
+| **Network Scanner** | Detect public network exposure | [[1]](#references) |
+
+### Dynamic Detection (Coming Soon)
+
+| Detector | Description | Reference |
+|----------|-------------|-----------|
+| **WebSocket Origin Bypass** | Test for CSWSH vulnerability (CVE-2026-25253) | [[7]](#references) |
+| **Prompt Injection Probe** | Test agent resilience against injection | [[8]](#references) |
+| **API Hook Bypass Check** | Verify security hooks on HTTP endpoints | [[9]](#references) |
+| **Auth Weakness Probe** | Test authentication enforcement | [[3]](#references) |
+
+### Runtime Monitor Skill (Coming Soon)
+
+| Feature | Description | Reference |
+|---------|-------------|-----------|
+| **File Integrity Monitor** | SHA256 verification of SOUL.md, IDENTITY.md | [[10]](#references) |
+| **Canary Token Injection** | Detect data exfiltration via fake secrets | [[11]](#references) |
+| **Anomaly Detection** | Monitor for suspicious behavior patterns | [[8]](#references) |
+| **CVE Feed Integration** | Real-time vulnerability notifications | [[10]](#references) |
+
+## Known Vulnerabilities Detected
+
+| CVE | Severity | Description | Fixed Version | Reference |
+|-----|----------|-------------|---------------|-----------|
+| CVE-2026-25253 | Critical (8.8) | 1-Click RCE via WebSocket Hijack | v2026.1.29 | [[7]](#references) |
+| CVE-2026-25157 | High | Authentication Bypass in Gateway API | v2026.2.10 | [[2]](#references) |
+| CVE-2026-24763 | High | Privilege Escalation via Prompt Injection | v2026.2.12 | [[12]](#references) |
+| CVE-2026-23891 | Medium | SSRF via URL Input Processing | v2026.2.8 | [[5]](#references) |
+| CVE-2026-22456 | Medium | Information Disclosure in Error Messages | v2026.2.6 | [[5]](#references) |
 
 ## Installation
 
@@ -41,17 +69,20 @@ pip install -e .
 ## Quick Start
 
 ```bash
-# Scan local OpenClaw installation
+# Full security scan
 openclaw-audit scan /path/to/openclaw
 
 # Scan with specific checks
 openclaw-audit scan /path/to/openclaw --checks config,cve,secrets
 
-# Output as JSON
-openclaw-audit scan /path/to/openclaw --json
+# CVE vulnerability check for specific version
+openclaw-audit cve --version 2026.2.6
 
 # Check network exposure
 openclaw-audit network --host localhost --port 18789
+
+# Output as JSON
+openclaw-audit scan /path/to/openclaw --json
 ```
 
 ## Usage
@@ -66,7 +97,7 @@ openclaw-audit scan /path/to/openclaw --all
 
 ```bash
 # Configuration audit
-openclaw-audit config /path/to/openclaw/config.yaml
+openclaw-audit config /path/to/openclaw
 
 # CVE vulnerability check
 openclaw-audit cve --version 2026.2.6
@@ -84,10 +115,10 @@ openclaw-audit network --host your-server.com --port 18789
 # Human-readable (default)
 openclaw-audit scan /path/to/openclaw
 
-# JSON output
+# JSON output for CI/CD integration
 openclaw-audit scan /path/to/openclaw --json
 
-# Save report
+# Save report to file
 openclaw-audit scan /path/to/openclaw --output report.json
 ```
 
@@ -116,6 +147,43 @@ secret_patterns:
   - "sk-[a-zA-Z0-9]{48}"
 ```
 
+## Documentation
+
+- [Security Research & References](docs/SECURITY_RESEARCH.md) - Detailed vulnerability analysis
+- [Detection Techniques](docs/DETECTION_TECHNIQUES.md) - How each detector works
+- [Disclosure Policy](docs/DISCLOSURE_POLICY.md) - Responsible disclosure guidelines
+- [Contributing](CONTRIBUTING.md) - How to contribute
+
+## Project Structure
+
+```
+openclaw-security-auditor/
+├── src/auditor/
+│   ├── scanners/           # Static analysis scanners
+│   ├── detectors/          # Dynamic vulnerability detectors
+│   └── payloads/           # Public payload references
+├── skill/                  # OpenClaw runtime monitor skill
+├── pocs/                   # PoC for disclosed CVEs
+└── docs/                   # Documentation
+```
+
+## References
+
+| # | Source | URL |
+|---|--------|-----|
+| 1 | SecurityScorecard - Exposed OpenClaw Instances | https://www.infosecurity-magazine.com/news/researchers-40000-exposed-openclaw/ |
+| 2 | The Register - OpenClaw Security Analysis | https://www.theregister.com/2026/02/09/openclaw_instances_exposed_vibe_code |
+| 3 | SecurityWeek - OpenClaw Hijack Vulnerability | https://www.securityweek.com/vulnerability-allows-hackers-to-hijack-openclaw-ai-assistant/ |
+| 4 | OpenClaw Official Security Docs | https://docs.openclaw.ai/gateway/security |
+| 5 | CyberSecurityNews - OpenClaw 2026.2.12 Release | https://cybersecuritynews.com/openclaw-2026-2-12-released/ |
+| 6 | Snyk - ToxicSkills Research | https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/ |
+| 7 | DepthFirst - CVE-2026-25253 Analysis | https://depthfirst.com/post/1-click-rce-to-steal-your-moltbot-data-and-keys |
+| 8 | Penligent - Prompt Injection Problem | https://www.penligent.ai/hackinglabs/the-openclaw-prompt-injection-problem-persistence-tool-hijack-and-the-security-boundary-that-doesnt-exist/ |
+| 9 | GitHub - API Security Hooks RFC | https://github.com/openclaw/openclaw/discussions/6098 |
+| 10 | GitHub - ClawSec Security Suite | https://github.com/prompt-security/clawsec |
+| 11 | GitHub - Runtime Prompt Injection Defenses | https://github.com/openclaw/openclaw/issues/4840 |
+| 12 | GBHackers - OpenClaw Security Update | https://gbhackers.com/openclaw-2026-2-12-released/ |
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -126,6 +194,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 2. Implement the `BaseScanner` interface
 3. Register in `src/auditor/scanners/__init__.py`
 4. Add tests in `tests/`
+5. Document the detection technique with references
 
 ## License
 
@@ -133,39 +202,13 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Disclaimer
 
-This tool is for **authorized security testing only**. Always obtain proper authorization before scanning systems you do not own.
+This tool is for **authorized security testing only**. Always obtain proper authorization before scanning systems you do not own. See [DISCLOSURE_POLICY.md](docs/DISCLOSURE_POLICY.md) for responsible disclosure guidelines.
 
----
+## Acknowledgments
 
-# 中文文档
-
-OpenClaw 安全审计工具，用于检测 OpenClaw 部署中的配置错误、已知 CVE 漏洞、敏感信息泄露和网络暴露问题。
-
-## 为什么需要这个工具？
-
-最新安全研究发现超过 **13.5 万个 OpenClaw 实例暴露在公网**，其中 63% 存在已知漏洞。在攻击者发现之前，先用这个工具审计你的部署。
-
-## 功能特性
-
-- **配置扫描** - 检测不安全的默认配置（如绑定 `0.0.0.0`）
-- **CVE 检测** - 检查已知高危漏洞
-- **密钥扫描** - 发现暴露的 API Key 和凭据
-- **网络暴露检测** - 检测实例是否意外暴露到公网
-- **Prompt 注入测试** - 测试代理对注入攻击的防御能力
-
-## 快速开始
-
-```bash
-# 安装
-pip install openclaw-security-auditor
-
-# 扫描本地 OpenClaw 安装
-openclaw-audit scan /path/to/openclaw
-
-# JSON 格式输出
-openclaw-audit scan /path/to/openclaw --json
-```
-
-## 免责声明
-
-本工具仅用于**授权的安全测试**。在扫描不属于你的系统之前，请务必获得适当授权。
+This project builds upon security research from:
+- [DepthFirst Security](https://depthfirst.com)
+- [Snyk Security Research](https://snyk.io)
+- [SecurityScorecard STRIKE Team](https://securityscorecard.com)
+- [Prompt Security](https://prompt.security)
+- [Penligent Labs](https://penligent.ai)
