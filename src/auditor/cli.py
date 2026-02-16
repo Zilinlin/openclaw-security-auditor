@@ -239,10 +239,8 @@ def cmd_scan(args):
 
         print_summary(results)
 
-    # Exit with error code if critical/high issues found
-    if any(r.has_critical or r.has_high for r in results):
-        return 1
-    return 0
+    # Exit with error code based on --fail-on threshold
+    return check_severity_threshold(results, args.fail_on)
 
 
 def cmd_config(args):
@@ -257,7 +255,7 @@ def cmd_config(args):
             print_finding(finding, i)
         print_summary([result])
 
-    return 1 if result.has_critical or result.has_high else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_cve(args):
@@ -282,7 +280,7 @@ def cmd_cve(args):
             ))
         print_summary([result])
 
-    return 1 if result.has_critical or result.has_high else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_secrets(args):
@@ -300,7 +298,7 @@ def cmd_secrets(args):
             print(colorize("\n✓ No exposed secrets found", Colors.GREEN))
         print_summary([result])
 
-    return 1 if result.has_critical or result.has_high else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_network(args):
@@ -315,7 +313,7 @@ def cmd_network(args):
             print_finding(finding, i)
         print_summary([result])
 
-    return 1 if result.has_critical or result.has_high else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 # =============================================================================
@@ -373,10 +371,7 @@ def cmd_detect(args):
 
         print_detector_summary(results)
 
-    # Exit with error code if vulnerabilities found
-    if any(r.is_vulnerable for r in results):
-        return 1
-    return 0
+    return check_severity_threshold(results, args.fail_on)
 
 
 def cmd_detect_websocket(args):
@@ -404,7 +399,7 @@ def cmd_detect_websocket(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
-    return 1 if result.is_vulnerable else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_detect_injection(args):
@@ -444,7 +439,7 @@ def cmd_detect_injection(args):
                 Colors.RED
             ))
 
-    return 1 if result.is_vulnerable else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_detect_api_bypass(args):
@@ -471,7 +466,7 @@ def cmd_detect_api_bypass(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
-    return 1 if result.is_vulnerable else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 def cmd_detect_auth(args):
@@ -498,12 +493,47 @@ def cmd_detect_auth(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
-    return 1 if result.is_vulnerable else 0
+    return check_severity_threshold([result], args.fail_on)
 
 
 # =============================================================================
 # MAIN ENTRY POINT
 # =============================================================================
+
+EXIT_CODE_OK = 0
+EXIT_CODE_FINDINGS = 1
+EXIT_CODE_ERROR = 2
+
+# Severity threshold ordering (lower index = more severe)
+SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
+
+
+def check_severity_threshold(results, fail_on: str) -> int:
+    """Check if any findings meet or exceed the severity threshold.
+
+    Args:
+        results: List of ScanResult or DetectorResult objects
+        fail_on: Minimum severity to trigger non-zero exit
+
+    Returns:
+        EXIT_CODE_FINDINGS if threshold exceeded, EXIT_CODE_OK otherwise
+    """
+    threshold_idx = SEVERITY_ORDER.index(fail_on)
+    failing_severities = set(SEVERITY_ORDER[: threshold_idx + 1])
+
+    for r in results:
+        for f in r.findings:
+            if hasattr(f, "severity") and f.severity:
+                sev = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+                if sev.lower() in failing_severities:
+                    return EXIT_CODE_FINDINGS
+            if hasattr(f, "status") and f.status:
+                status = f.status.value if hasattr(f.status, "value") else str(f.status)
+                if status == "vulnerable":
+                    return EXIT_CODE_FINDINGS
+
+    return EXIT_CODE_OK
+
 
 def main():
     """Main entry point."""
@@ -515,6 +545,12 @@ def main():
         "--json",
         action="store_true",
         help="Output results as JSON",
+    )
+    parser.add_argument(
+        "--fail-on",
+        choices=SEVERITY_ORDER,
+        default="high",
+        help="Exit with code 1 if findings at this severity or above (default: high)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")

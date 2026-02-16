@@ -159,12 +159,12 @@ This PoC is for educational and authorized security testing only.
 2. Report to the OpenClaw security team:
    - Email: security@openclaw.ai
    - GitHub Security Advisory: https://github.com/openclaw/openclaw/security/advisories
-3. Optionally CC us: [your-email]
+3. Optionally CC us: zilinlin@proton.me
 
 ### If You Find a Vulnerability in Our Tool
 
 1. **Do NOT** open a public GitHub issue
-2. Email: [your-email]
+2. Email: zilinlin@proton.me
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
@@ -221,7 +221,7 @@ We provide this tool in good faith for legitimate security purposes. We:
 
 ## Contact
 
-- **Security Issues**: [your-email]
+- **Security Issues**: zilinlin@proton.me
 - **General Questions**: Open a GitHub issue
 - **Contributions**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
 

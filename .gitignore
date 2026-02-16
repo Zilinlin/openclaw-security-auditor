@@ -55,3 +55,6 @@ Thumbs.db
 .openclaw-audit.yaml
 reports/
 *.log
+
+# Claude Code local config
+.claude/
