@@ -6,7 +6,7 @@ If you discover a security vulnerability in openclaw-security-auditor itself, pl
 
 ### Contact
 
-- **Email**: zilinlin@proton.me
+- **Email**: shenzilin27@gmail.com
 - **Subject line**: `[SECURITY] openclaw-security-auditor: <brief description>`
 
 ### What to include

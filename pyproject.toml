@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openclaw-security-auditor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Security auditing tool for OpenClaw deployments"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Zilinlin", email = "zilinlin@example.com"}
+    {name = "Zilinlin", email = "shenzilin27@gmail.com"}
 ]
 keywords = [
     "security",
