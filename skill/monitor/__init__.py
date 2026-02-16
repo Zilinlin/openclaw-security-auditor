@@ -14,12 +14,14 @@ Reference:
 from .integrity import FileIntegrityMonitor
 from .canary import CanaryTokenManager
 from .anomaly import AnomalyDetector
+from .cve_feed import CVEFeedManager
 from .alerts import AlertManager, Alert, AlertSeverity
 
 __all__ = [
     "FileIntegrityMonitor",
     "CanaryTokenManager",
     "AnomalyDetector",
+    "CVEFeedManager",
     "AlertManager",
     "Alert",
     "AlertSeverity",

@@ -19,6 +19,7 @@ from typing import Dict, Optional
 from .integrity import FileIntegrityMonitor
 from .canary import CanaryTokenManager
 from .anomaly import AnomalyDetector
+from .cve_feed import CVEFeedManager
 from .alerts import AlertManager, Alert, AlertSeverity, console_alert_handler
 
 
@@ -29,6 +30,7 @@ class SecurityMonitor:
     - File integrity monitoring
     - Canary token detection
     - Anomaly detection
+    - CVE feed integration
     - Alert management
 
     Reference:
@@ -104,6 +106,15 @@ class SecurityMonitor:
             egress_whitelist=set(anomaly_config.get("egress_whitelist", [])) or None,
         )
 
+        # CVE feed manager
+        cve_feed_config = self.config.get("cve_feed", {})
+        self.cve_feed_manager = CVEFeedManager(
+            alert_manager=self.alert_manager,
+            sources=cve_feed_config.get("sources", []),
+            check_interval=cve_feed_config.get("check_interval", 3600),
+            current_version=cve_feed_config.get("current_version"),
+        )
+
     def initialize(self) -> Dict:
         """Initialize all monitoring components.
 
@@ -142,6 +153,17 @@ class SecurityMonitor:
             }
         else:
             status["components"]["anomaly"] = {"enabled": False}
+
+        # Initialize CVE feed
+        if self.config.get("cve_feed", {}).get("enabled", True):
+            advisories = self.cve_feed_manager.check()
+            status["components"]["cve_feed"] = {
+                "enabled": True,
+                "relevant_advisories": len(advisories),
+                "total_advisories": len(self.cve_feed_manager.advisories),
+            }
+        else:
+            status["components"]["cve_feed"] = {"enabled": False}
 
         return status
 
@@ -337,6 +359,7 @@ class SecurityMonitor:
                 "integrity": self.integrity_monitor.get_status(),
                 "canary": self.canary_manager.get_status(),
                 "anomaly": self.anomaly_detector.get_status(),
+                "cve_feed": self.cve_feed_manager.get_status(),
             },
             "alerts": self.alert_manager.get_summary(),
         }
@@ -356,6 +379,8 @@ def handle_command(monitor: SecurityMonitor, command: str, args: list) -> str:
         @security alerts clear - Clear acknowledged alerts
         @security canary inject - Inject canaries
         @security canary check <text> - Check for canary leaks
+        @security cve check - Check for relevant CVE advisories
+        @security cve status - Show CVE feed status
 
     Args:
         monitor: SecurityMonitor instance
@@ -402,6 +427,23 @@ def handle_command(monitor: SecurityMonitor, command: str, args: list) -> str:
         else:
             return "Usage: @security canary [inject|check <text>|status]"
 
+    elif command == "cve":
+        if not args:
+            return "Usage: @security cve [check|status]"
+
+        if args[0] == "check":
+            advisories = monitor.cve_feed_manager.check()
+            if advisories:
+                lines = [f"ALERT: {len(advisories)} relevant CVE advisories found!"]
+                for adv in advisories:
+                    lines.append(f"  [{adv.severity.value.upper()}] {adv.cve_id}: {adv.title}")
+                return "\n".join(lines)
+            return "OK: No relevant CVE advisories for current version."
+        elif args[0] == "status":
+            return json.dumps(monitor.cve_feed_manager.get_status(), indent=2)
+        else:
+            return "Usage: @security cve [check|status]"
+
     else:
         return f"Unknown command: {command}\n" + \
-               "Available: status, check, alerts, canary"
+               "Available: status, check, alerts, canary, cve"
