@@ -70,6 +70,27 @@ class SecretScanner(BaseScanner):
             "severity": Severity.CRITICAL,
             "description": "A database connection string with embedded credentials was found.",
         },
+        "slack_app_token": {
+            "pattern": r"xapp-[0-9]+-[A-Za-z0-9]+-[0-9]+-[a-f0-9]+",
+            "title": "Slack App-Level Token Exposed",
+            "severity": Severity.CRITICAL,
+            "description": "A Slack app-level token (xapp-*) was found. "
+                          "This token grants access to the Slack Events API and Socket Mode.",
+        },
+        "slack_bot_token": {
+            "pattern": r"xoxb-[0-9]+-[0-9]+-[A-Za-z0-9]+",
+            "title": "Slack Bot Token Exposed",
+            "severity": Severity.CRITICAL,
+            "description": "A Slack bot token (xoxb-*) was found. "
+                          "This token grants bot-level access to the Slack workspace.",
+        },
+        "slack_user_token": {
+            "pattern": r"xoxp-[0-9]+-[0-9]+-[0-9]+-[a-f0-9]+",
+            "title": "Slack User Token Exposed",
+            "severity": Severity.CRITICAL,
+            "description": "A Slack user token (xoxp-*) was found. "
+                          "This token grants user-level access to the Slack workspace.",
+        },
         "slack_webhook": {
             "pattern": r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+",
             "title": "Slack Webhook URL Exposed",

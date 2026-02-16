@@ -115,5 +115,87 @@ class TestSecretScanner(unittest.TestCase):
             self.assertEqual(len(critical_findings), 0)
 
 
+class TestSecretScannerSlackTokens(unittest.TestCase):
+    """Test Slack token detection patterns."""
+
+    def test_detect_slack_app_token(self):
+        """Test detection of Slack app-level token (xapp-*)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config_file.write_text(
+                'appToken: "xapp-1-A0BFAKE1234-99990000111122-'
+                'aabbccdd00112233445566778899aabbccddeeff00112233445566778899aabbcc"'
+            )
+
+            scanner = SecretScanner()
+            result = scanner.scan(tmpdir)
+
+            self.assertGreaterEqual(len(result.findings), 1)
+            self.assertTrue(any("Slack App-Level Token" in f.title for f in result.findings))
+
+    def test_detect_slack_bot_token(self):
+        """Test detection of Slack bot token (xoxb-*)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config_file.write_text(
+                'botToken: "xoxb-99990000111122-99990000111133-FakeTokenValue1234"'
+            )
+
+            scanner = SecretScanner()
+            result = scanner.scan(tmpdir)
+
+            self.assertGreaterEqual(len(result.findings), 1)
+            self.assertTrue(any("Slack Bot Token" in f.title for f in result.findings))
+
+    def test_detect_slack_user_token(self):
+        """Test detection of Slack user token (xoxp-*)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config_file.write_text(
+                'userToken: "xoxp-123456789-987654321-123456789-abcdef0123456789abcdef0123456789"'
+            )
+
+            scanner = SecretScanner()
+            result = scanner.scan(tmpdir)
+
+            self.assertGreaterEqual(len(result.findings), 1)
+            self.assertTrue(any("Slack User Token" in f.title for f in result.findings))
+
+    def test_slack_tokens_are_critical_severity(self):
+        """Test that Slack tokens are flagged as CRITICAL."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config_file.write_text(
+                'appToken: "xapp-1-ABC123DEF-10506102232225-deadbeefdeadbeefdeadbeefdeadbeef"\n'
+                'botToken: "xoxb-123-456-AbCdEfGh"\n'
+            )
+
+            scanner = SecretScanner()
+            result = scanner.scan(tmpdir)
+
+            slack_findings = [
+                f for f in result.findings if "Slack" in f.title
+            ]
+            self.assertGreaterEqual(len(slack_findings), 1)
+            for f in slack_findings:
+                self.assertEqual(f.severity, Severity.CRITICAL)
+
+    def test_slack_tokens_redacted_in_output(self):
+        """Test that detected Slack tokens are redacted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = Path(tmpdir) / "config.yaml"
+            config_file.write_text(
+                'botToken: "xoxb-99990000111122-99990000111133-FakeTokenValue1234"'
+            )
+
+            scanner = SecretScanner()
+            result = scanner.scan(tmpdir)
+
+            for f in result.findings:
+                if "Slack" in f.title:
+                    # The full token should not appear in the description
+                    self.assertNotIn("FakeTokenValue1234", f.description)
+
+
 if __name__ == '__main__':
     unittest.main()

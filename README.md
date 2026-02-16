@@ -24,7 +24,7 @@ This tool helps security teams and developers audit their OpenClaw deployments b
 | **Secret Scanner** | Find exposed API keys and credentials | [[6]](#references) |
 | **Network Scanner** | Detect public network exposure | [[1]](#references) |
 
-### Dynamic Detection (Coming Soon)
+### Dynamic Detection
 
 | Detector | Description | Reference |
 |----------|-------------|-----------|
@@ -33,7 +33,7 @@ This tool helps security teams and developers audit their OpenClaw deployments b
 | **API Hook Bypass Check** | Verify security hooks on HTTP endpoints | [[9]](#references) |
 | **Auth Weakness Probe** | Test authentication enforcement | [[3]](#references) |
 
-### Runtime Monitor Skill (Coming Soon)
+### Runtime Monitor Skill
 
 | Feature | Description | Reference |
 |---------|-------------|-----------|

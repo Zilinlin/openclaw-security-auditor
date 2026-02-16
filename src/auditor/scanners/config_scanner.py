@@ -16,7 +16,7 @@ class ConfigScanner(BaseScanner):
     name = "config"
     description = "Scan configuration files for security misconfigurations"
 
-    # Dangerous default configurations
+    # Dangerous default configurations (regex-based, flat key=value style)
     DANGEROUS_PATTERNS = [
         {
             "pattern": r"bind[_\s]*(?:address|host)?\s*[=:]\s*['\"]?0\.0\.0\.0",
@@ -85,6 +85,63 @@ class ConfigScanner(BaseScanner):
             "cve": None,
         },
     ]
+
+    # OpenClaw-specific YAML structure checks (parsed from YAML, not regex)
+    YAML_CHECKS = [
+        {
+            "check": "no_auth_section",
+            "title": "No authentication configured",
+            "severity": Severity.CRITICAL,
+            "description": "The OpenClaw configuration has no 'auth' or 'security' section. "
+                          "The gateway API will be accessible without authentication (CVE-2026-25157).",
+            "remediation": "Add an auth section with API key or JWT authentication. "
+                          "See https://docs.openclaw.ai/gateway/security",
+            "cve": "CVE-2026-25157",
+        },
+        {
+            "check": "system_prompt_in_config",
+            "title": "System prompt exposed in config file",
+            "severity": Severity.MEDIUM,
+            "description": "The agent system prompt is stored directly in the config file. "
+                          "If this file is accessible or committed to version control, "
+                          "the prompt can be extracted and used for prompt injection attacks.",
+            "remediation": "Store the system prompt in a separate file (e.g., SOUL.md) "
+                          "and reference it from config, or use environment variables.",
+            "cve": None,
+        },
+        {
+            "check": "slack_tokens_in_config",
+            "title": "Slack tokens stored in plaintext config",
+            "severity": Severity.HIGH,
+            "description": "Slack appToken and/or botToken are stored directly in the config file. "
+                          "These tokens grant access to the Slack workspace and should be secured.",
+            "remediation": "Move Slack tokens to environment variables or a secrets manager. "
+                          "Use SLACK_APP_TOKEN and SLACK_BOT_TOKEN env vars instead.",
+            "cve": None,
+        },
+        {
+            "check": "no_cors_origin_config",
+            "title": "No WebSocket origin validation configured",
+            "severity": Severity.HIGH,
+            "description": "No 'cors' or 'allowedOrigins' is configured for the gateway. "
+                          "The WebSocket server may accept connections from any origin, "
+                          "enabling Cross-Site WebSocket Hijacking (CVE-2026-25253).",
+            "remediation": "Configure allowedOrigins in the gateway section to restrict "
+                          "WebSocket connections to trusted domains.",
+            "cve": "CVE-2026-25253",
+        },
+        {
+            "check": "default_gateway_port",
+            "title": "Default gateway port in use",
+            "severity": Severity.LOW,
+            "description": "The gateway is using a well-known default port, making it easier to discover.",
+            "remediation": "Consider using a non-default port for the gateway.",
+            "cve": None,
+        },
+    ]
+
+    # Default ports used by OpenClaw
+    DEFAULT_PORTS = {18789, 18790, 18791, 3000, 3001}
 
     CONFIG_FILES = [
         "config.yaml",
@@ -159,6 +216,7 @@ class ConfigScanner(BaseScanner):
         except Exception as e:
             return findings
 
+        # Regex-based pattern matching (flat key=value configs, .env, etc.)
         for pattern_info in self.DANGEROUS_PATTERNS:
             if re.search(pattern_info["pattern"], content, re.IGNORECASE | re.MULTILINE):
                 findings.append(Finding(
@@ -170,7 +228,114 @@ class ConfigScanner(BaseScanner):
                     remediation=pattern_info["remediation"],
                 ))
 
+        # YAML-aware structural checks for OpenClaw configs
+        if file_path.suffix in (".yaml", ".yml"):
+            yaml_findings = self._scan_yaml_structure(file_path, content)
+            findings.extend(yaml_findings)
+
         return findings
+
+    def _scan_yaml_structure(self, file_path: Path, content: str) -> List[Finding]:
+        """Scan parsed YAML for OpenClaw-specific structural issues."""
+        findings = []
+
+        try:
+            config = yaml.safe_load(content)
+        except yaml.YAMLError:
+            return findings
+
+        if not isinstance(config, dict):
+            return findings
+
+        # Only run OpenClaw checks if this looks like an OpenClaw config
+        if not self._is_openclaw_config(config):
+            return findings
+
+        for check_info in self.YAML_CHECKS:
+            check_name = check_info["check"]
+            is_issue = False
+
+            if check_name == "no_auth_section":
+                is_issue = self._check_no_auth(config)
+            elif check_name == "system_prompt_in_config":
+                is_issue = self._check_system_prompt_in_config(config)
+            elif check_name == "slack_tokens_in_config":
+                is_issue = self._check_slack_tokens_in_config(config)
+            elif check_name == "no_cors_origin_config":
+                is_issue = self._check_no_cors_origin(config)
+            elif check_name == "default_gateway_port":
+                is_issue = self._check_default_port(config)
+
+            if is_issue:
+                findings.append(Finding(
+                    title=check_info["title"],
+                    severity=check_info["severity"],
+                    description=check_info["description"],
+                    location=str(file_path),
+                    cve=check_info.get("cve"),
+                    remediation=check_info["remediation"],
+                ))
+
+        return findings
+
+    def _is_openclaw_config(self, config: dict) -> bool:
+        """Check if this YAML looks like an OpenClaw configuration."""
+        # OpenClaw configs typically have 'agent', 'gateway', or 'channels' keys
+        openclaw_keys = {"agent", "gateway", "channels", "skills", "tools"}
+        return bool(openclaw_keys & set(config.keys()))
+
+    def _check_no_auth(self, config: dict) -> bool:
+        """Check if authentication is missing from config."""
+        # Look for auth config in common locations
+        if "auth" in config or "security" in config or "authentication" in config:
+            return False
+        gateway = config.get("gateway", {})
+        if isinstance(gateway, dict) and ("auth" in gateway or "security" in gateway):
+            return False
+        return True
+
+    def _check_system_prompt_in_config(self, config: dict) -> bool:
+        """Check if system prompt is stored directly in config."""
+        agent = config.get("agent", {})
+        if isinstance(agent, dict):
+            prompt = agent.get("systemPrompt", agent.get("system_prompt", ""))
+            # Flag if prompt is a substantial inline string (not a file reference)
+            if isinstance(prompt, str) and len(prompt) > 50:
+                return True
+        return False
+
+    def _check_slack_tokens_in_config(self, config: dict) -> bool:
+        """Check if Slack tokens are stored in plaintext config."""
+        channels = config.get("channels", {})
+        if not isinstance(channels, dict):
+            return False
+        slack = channels.get("slack", {})
+        if not isinstance(slack, dict):
+            return False
+        has_app_token = bool(slack.get("appToken"))
+        has_bot_token = bool(slack.get("botToken"))
+        return has_app_token or has_bot_token
+
+    def _check_no_cors_origin(self, config: dict) -> bool:
+        """Check if WebSocket origin validation is missing."""
+        gateway = config.get("gateway", {})
+        if not isinstance(gateway, dict):
+            return True
+        # Look for origin/cors configuration
+        has_cors = any(
+            key in gateway
+            for key in ("cors", "allowedOrigins", "allowed_origins", "origin")
+        )
+        return not has_cors
+
+    def _check_default_port(self, config: dict) -> bool:
+        """Check if a default gateway port is being used."""
+        gateway = config.get("gateway", {})
+        if isinstance(gateway, dict):
+            port = gateway.get("port")
+            if port in self.DEFAULT_PORTS:
+                return True
+        return False
 
     def _check_missing_security(self, target_path: Path) -> List[Finding]:
         """Check for missing security configurations."""
