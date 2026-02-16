@@ -1,14 +1,18 @@
 """Tests for configuration scanner."""
 
 import tempfile
+import unittest
 from pathlib import Path
 
-import pytest
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from auditor.scanners import ConfigScanner, Severity
+from auditor.scanners.config_scanner import ConfigScanner
+from auditor.scanners.base import Severity
 
 
-class TestConfigScanner:
+class TestConfigScanner(unittest.TestCase):
     """Test cases for ConfigScanner."""
 
     def test_detect_bind_all_interfaces(self):
@@ -20,11 +24,11 @@ class TestConfigScanner:
             scanner = ConfigScanner()
             result = scanner.scan(tmpdir)
 
-            assert len(result.findings) >= 1
+            self.assertGreaterEqual(len(result.findings), 1)
             critical_findings = [
                 f for f in result.findings if f.severity == Severity.CRITICAL
             ]
-            assert any("0.0.0.0" in f.title for f in critical_findings)
+            self.assertTrue(any("0.0.0.0" in f.title for f in critical_findings))
 
     def test_detect_auth_disabled(self):
         """Test detection of disabled authentication."""
@@ -35,8 +39,8 @@ class TestConfigScanner:
             scanner = ConfigScanner()
             result = scanner.scan(tmpdir)
 
-            assert len(result.findings) >= 1
-            assert any("Authentication disabled" in f.title for f in result.findings)
+            self.assertGreaterEqual(len(result.findings), 1)
+            self.assertTrue(any("Authentication disabled" in f.title for f in result.findings))
 
     def test_detect_debug_mode(self):
         """Test detection of debug mode."""
@@ -47,7 +51,7 @@ class TestConfigScanner:
             scanner = ConfigScanner()
             result = scanner.scan(tmpdir)
 
-            assert any("Debug mode" in f.title for f in result.findings)
+            self.assertTrue(any("Debug mode" in f.title for f in result.findings))
 
     def test_detect_weak_password(self):
         """Test detection of weak admin password."""
@@ -58,7 +62,7 @@ class TestConfigScanner:
             scanner = ConfigScanner()
             result = scanner.scan(tmpdir)
 
-            assert any("Weak admin password" in f.title for f in result.findings)
+            self.assertTrue(any("Weak admin password" in f.title for f in result.findings))
 
     def test_no_findings_for_secure_config(self):
         """Test that secure configurations don't trigger false positives."""
@@ -74,16 +78,19 @@ class TestConfigScanner:
             scanner = ConfigScanner()
             result = scanner.scan(tmpdir)
 
-            # Should have no critical or high findings
             serious_findings = [
                 f for f in result.findings
                 if f.severity in (Severity.CRITICAL, Severity.HIGH)
             ]
-            assert len(serious_findings) == 0
+            self.assertEqual(len(serious_findings), 0)
 
     def test_scan_nonexistent_path(self):
         """Test scanning a non-existent path."""
         scanner = ConfigScanner()
         result = scanner.scan("/nonexistent/path")
 
-        assert len(result.errors) > 0
+        self.assertTrue(len(result.errors) > 0)
+
+
+if __name__ == '__main__':
+    unittest.main()
