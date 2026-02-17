@@ -213,6 +213,30 @@ openclaw-audit --fail-on info secrets /path/to/project
 
 Exit codes: `0` = pass, `1` = findings at or above threshold, `2` = error.
 
+### SARIF Output (GitHub Code Scanning)
+
+Generate [SARIF](https://sarifweb.azurewebsites.net/) reports for integration with GitHub Code Scanning:
+
+```bash
+# Write SARIF report to file
+openclaw-audit --sarif report.sarif cve --version 2026.1.0
+
+# Combine with other flags
+openclaw-audit --sarif report.sarif --fail-on high scan /path/to/openclaw
+```
+
+Upload to GitHub Code Scanning in your CI workflow:
+
+```yaml
+- name: Run security audit
+  run: openclaw-audit --sarif results.sarif scan .
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
 ### GitHub Action
 
 Add security scanning to your CI pipeline with one step:
@@ -283,7 +307,7 @@ openclaw-security-auditor/
 ├── skill/                  # OpenClaw runtime monitoring skill
 │   └── monitor/            # Integrity, canary, anomaly, CVE feed modules
 ├── pocs/                   # PoCs for disclosed CVEs (patched only)
-├── tests/                  # 167 tests
+├── tests/                  # 237 tests
 └── docs/                   # Security research & disclosure policy
 ```
 

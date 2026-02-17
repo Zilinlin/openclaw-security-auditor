@@ -1,5 +1,7 @@
 """Command-line interface for OpenClaw Security Auditor."""
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -12,6 +14,7 @@ from .detectors import (
     PromptInjectionDetector,
     WebSocketOriginDetector,
 )
+from .detectors.base import DetectorFinding, DetectorResult, DetectorSeverity
 from .scanners import (
     SCANNERS,
     ConfigScanner,
@@ -19,6 +22,7 @@ from .scanners import (
     NetworkScanner,
     SecretScanner,
 )
+from .scanners.base import Finding, ScanResult, Severity
 
 logger = logging.getLogger("openclaw-audit")
 
@@ -43,7 +47,7 @@ def colorize(text: str, color: str) -> str:
     return text
 
 
-def severity_color(severity) -> str:
+def severity_color(severity: Severity | DetectorSeverity | str) -> str:
     """Get color for severity level."""
     # Handle both Severity and DetectorSeverity
     severity_value = severity.value if hasattr(severity, "value") else str(severity)
@@ -57,7 +61,7 @@ def severity_color(severity) -> str:
     return colors.get(severity_value.lower(), Colors.RESET)
 
 
-def print_banner():
+def print_banner() -> None:
     """Print tool banner."""
     banner = """
 ╔═══════════════════════════════════════════════════════════╗
@@ -68,7 +72,7 @@ def print_banner():
     print(colorize(banner, Colors.CYAN))
 
 
-def print_finding(finding, index: int):
+def print_finding(finding: Finding | DetectorFinding, index: int) -> None:
     """Print a single finding in human-readable format."""
     # Handle both scanner findings and detector findings
     if hasattr(finding, "severity") and finding.severity:
@@ -109,7 +113,7 @@ def print_finding(finding, index: int):
             print(f"     - {ref}")
 
 
-def print_summary(results: list):
+def print_summary(results: list[ScanResult | DetectorResult]) -> None:
     """Print scan summary."""
     total_findings = sum(len(r.findings) for r in results)
 
@@ -162,7 +166,7 @@ def print_summary(results: list):
         )
 
 
-def print_detector_summary(results: list):
+def print_detector_summary(results: list[DetectorResult]) -> None:
     """Print detector-specific summary."""
     vulnerable_count = sum(1 for r in results if r.is_vulnerable)
     total = len(results)
@@ -184,8 +188,9 @@ def print_detector_summary(results: list):
 # =============================================================================
 
 
-def cmd_scan(args):
+def cmd_scan(args: argparse.Namespace) -> int:
     """Run all or selected scanners."""
+    global _collected_results
     results = []
 
     # Determine which scanners to run
@@ -238,11 +243,13 @@ def cmd_scan(args):
 
         print_summary(results)
 
+    _collected_results.extend(results)
+
     # Exit with error code based on --fail-on threshold
     return check_severity_threshold(results, args.fail_on)
 
 
-def cmd_config(args):
+def cmd_config(args: argparse.Namespace) -> int:
     """Run configuration scanner only."""
     scanner = ConfigScanner()
     result = scanner.scan(args.target)
@@ -254,10 +261,11 @@ def cmd_config(args):
             print_finding(finding, i)
         print_summary([result])
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_cve(args):
+def cmd_cve(args: argparse.Namespace) -> int:
     """Run CVE scanner only."""
     scanner = CVEScanner()
     result = scanner.scan(args.target or ".", version=args.version)
@@ -276,10 +284,11 @@ def cmd_cve(args):
             print(colorize(f"\n✓ No known CVEs affect version {args.version}", Colors.GREEN))
         print_summary([result])
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_secrets(args):
+def cmd_secrets(args: argparse.Namespace) -> int:
     """Run secret scanner only."""
     scanner = SecretScanner()
     result = scanner.scan(args.target)
@@ -294,10 +303,11 @@ def cmd_secrets(args):
             print(colorize("\n✓ No exposed secrets found", Colors.GREEN))
         print_summary([result])
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_network(args):
+def cmd_network(args: argparse.Namespace) -> int:
     """Run network scanner only."""
     scanner = NetworkScanner()
     result = scanner.scan(args.host, port=args.port)
@@ -309,6 +319,7 @@ def cmd_network(args):
             print_finding(finding, i)
         print_summary([result])
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
@@ -317,8 +328,9 @@ def cmd_network(args):
 # =============================================================================
 
 
-def cmd_detect(args):
+def cmd_detect(args: argparse.Namespace) -> int:
     """Run all or selected dynamic detectors."""
+    global _collected_results
     results = []
 
     # Determine which detectors to run
@@ -368,10 +380,11 @@ def cmd_detect(args):
 
         print_detector_summary(results)
 
+    _collected_results.extend(results)
     return check_severity_threshold(results, args.fail_on)
 
 
-def cmd_detect_websocket(args):
+def cmd_detect_websocket(args: argparse.Namespace) -> int:
     """Run WebSocket Origin bypass detector."""
     detector = WebSocketOriginDetector()
 
@@ -396,10 +409,11 @@ def cmd_detect_websocket(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_detect_injection(args):
+def cmd_detect_injection(args: argparse.Namespace) -> int:
     """Run prompt injection detector."""
     detector = PromptInjectionDetector()
 
@@ -438,10 +452,11 @@ def cmd_detect_injection(args):
                 )
             )
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_detect_api_bypass(args):
+def cmd_detect_api_bypass(args: argparse.Namespace) -> int:
     """Run API hook bypass detector."""
     detector = APIHookBypassDetector()
 
@@ -465,10 +480,11 @@ def cmd_detect_api_bypass(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
 
 
-def cmd_detect_auth(args):
+def cmd_detect_auth(args: argparse.Namespace) -> int:
     """Run authentication weakness detector."""
     detector = AuthWeaknessDetector()
 
@@ -492,7 +508,119 @@ def cmd_detect_auth(args):
             for error in result.errors:
                 print(colorize(f"Error: {error}", Colors.RED))
 
+    _collected_results.append(result)
     return check_severity_threshold([result], args.fail_on)
+
+
+# =============================================================================
+# SARIF OUTPUT
+# =============================================================================
+
+SEVERITY_TO_SARIF_LEVEL = {
+    "critical": "error",
+    "high": "error",
+    "medium": "warning",
+    "low": "note",
+    "info": "note",
+}
+
+
+def results_to_sarif(results: list) -> dict:
+    """Convert scan/detector results to SARIF v2.1.0 format.
+
+    SARIF (Static Analysis Results Interchange Format) enables integration
+    with GitHub Code Scanning and other security dashboards.
+
+    Args:
+        results: List of ScanResult or DetectorResult objects.
+
+    Returns:
+        A SARIF v2.1.0 JSON-serializable dict.
+    """
+    rules = []
+    sarif_results = []
+    rule_ids_seen: set[str] = set()
+
+    for r in results:
+        scanner_name = getattr(r, "scanner_name", None) or getattr(r, "detector_name", "unknown")
+
+        for finding in r.findings:
+            # Build a stable rule ID
+            if hasattr(finding, "cve") and finding.cve:
+                rule_id = finding.cve
+            else:
+                rule_id = finding.title.lower().replace(" ", "-")
+
+            # Determine severity level
+            sev = "info"
+            if hasattr(finding, "severity") and finding.severity:
+                sev = (
+                    finding.severity.value
+                    if hasattr(finding.severity, "value")
+                    else str(finding.severity)
+                ).lower()
+            sarif_level = SEVERITY_TO_SARIF_LEVEL.get(sev, "note")
+
+            # Register rule (deduplicate)
+            if rule_id not in rule_ids_seen:
+                rule_ids_seen.add(rule_id)
+                rule_entry: dict = {
+                    "id": rule_id,
+                    "shortDescription": {"text": finding.title},
+                    "defaultConfiguration": {"level": sarif_level},
+                }
+                if finding.description:
+                    rule_entry["fullDescription"] = {"text": finding.description}
+                if hasattr(finding, "remediation") and finding.remediation:
+                    rule_entry["help"] = {"text": finding.remediation}
+                rules.append(rule_entry)
+
+            # Build result location
+            location_uri = "."
+            if hasattr(finding, "location") and finding.location:
+                location_uri = finding.location
+
+            sarif_result: dict = {
+                "ruleId": rule_id,
+                "level": sarif_level,
+                "message": {"text": finding.description or finding.title},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": location_uri},
+                        }
+                    }
+                ],
+            }
+
+            # Add properties for extra metadata
+            properties: dict = {"scanner": scanner_name}
+            if hasattr(finding, "evidence") and finding.evidence:
+                properties["evidence"] = finding.evidence
+            if hasattr(finding, "references") and finding.references:
+                properties["references"] = finding.references
+            if properties:
+                sarif_result["properties"] = properties
+
+            sarif_results.append(sarif_result)
+
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "openclaw-security-auditor",
+                        "version": "0.1.1",
+                        "informationUri": "https://github.com/Zilinlin/openclaw-security-auditor",
+                        "rules": rules,
+                    }
+                },
+                "results": sarif_results,
+            }
+        ],
+    }
 
 
 # =============================================================================
@@ -506,8 +634,11 @@ EXIT_CODE_ERROR = 2
 # Severity threshold ordering (lower index = more severe)
 SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 
+# Collected results for SARIF output (populated by command functions)
+_collected_results: list = []
 
-def check_severity_threshold(results, fail_on: str) -> int:
+
+def check_severity_threshold(results: list[ScanResult | DetectorResult], fail_on: str) -> int:
     """Check if any findings meet or exceed the severity threshold.
 
     Args:
@@ -534,7 +665,7 @@ def check_severity_threshold(results, fail_on: str) -> int:
     return EXIT_CODE_OK
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         prog="openclaw-audit",
@@ -550,6 +681,11 @@ def main():
         choices=SEVERITY_ORDER,
         default="high",
         help="Exit with code 1 if findings at this severity or above (default: high)",
+    )
+    parser.add_argument(
+        "--sarif",
+        metavar="FILE",
+        help="Write results in SARIF v2.1.0 format to FILE (for GitHub Code Scanning)",
     )
     parser.add_argument(
         "-v",
@@ -716,7 +852,20 @@ def main():
         "detect-auth": cmd_detect_auth,
     }
 
-    return commands[args.command](args)
+    # Reset collected results before running
+    global _collected_results
+    _collected_results = []
+
+    exit_code = commands[args.command](args)
+
+    # Write SARIF output if requested
+    if args.sarif and _collected_results:
+        sarif_data = results_to_sarif(_collected_results)
+        with open(args.sarif, "w") as f:
+            json.dump(sarif_data, f, indent=2)
+        logger.info("SARIF report written to %s", args.sarif)
+
+    return exit_code
 
 
 if __name__ == "__main__":
