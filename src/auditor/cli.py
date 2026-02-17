@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import sys
 
 from .detectors import (
@@ -18,6 +19,8 @@ from .scanners import (
     NetworkScanner,
     SecretScanner,
 )
+
+logger = logging.getLogger("openclaw-audit")
 
 
 class Colors:
@@ -196,7 +199,7 @@ def cmd_scan(args):
 
     for scanner_name in scanner_names:
         if scanner_name not in SCANNERS:
-            print(f"Unknown scanner: {scanner_name}", file=sys.stderr)
+            logger.warning("Unknown scanner: %s", scanner_name)
             continue
 
         scanner_class = SCANNERS[scanner_name]
@@ -326,7 +329,7 @@ def cmd_detect(args):
 
     for detector_name in detector_names:
         if detector_name not in DETECTORS:
-            print(f"Unknown detector: {detector_name}", file=sys.stderr)
+            logger.warning("Unknown detector: %s", detector_name)
             continue
 
         detector_class = DETECTORS[detector_name]
@@ -343,7 +346,7 @@ def cmd_detect(args):
             )
             results.append(result)
         except Exception as e:
-            print(colorize(f"Error running {detector_name}: {e}", Colors.RED))
+            logger.error("Error running %s: %s", detector_name, e)
 
     # Output results
     if args.json:
@@ -548,6 +551,12 @@ def main():
         default="high",
         help="Exit with code 1 if findings at this severity or above (default: high)",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose/debug output",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -677,6 +686,11 @@ def main():
     # =========================================================================
 
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.WARNING,
+        format="%(name)s: %(levelname)s: %(message)s",
+    )
 
     if not args.command:
         parser.print_help()

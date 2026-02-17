@@ -213,6 +213,55 @@ openclaw-audit --fail-on info secrets /path/to/project
 
 Exit codes: `0` = pass, `1` = findings at or above threshold, `2` = error.
 
+### GitHub Action
+
+Add security scanning to your CI pipeline with one step:
+
+```yaml
+# .github/workflows/security.yml
+name: Security Audit
+on: [push, pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Zilinlin/openclaw-security-auditor@main
+        with:
+          target: "."
+          version: "2026.2.5"
+          fail-on: "high"
+```
+
+### Docker
+
+Run scans without installing Python:
+
+```bash
+# Build the image
+docker build -t openclaw-audit .
+
+# Scan a local directory
+docker run --rm -v $(pwd):/target openclaw-audit scan /target
+
+# Check a specific version for CVEs
+docker run --rm openclaw-audit cve --version 2026.1.0
+```
+
+### Pre-commit Hook
+
+Add automatic secret scanning to your git workflow:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/Zilinlin/openclaw-security-auditor
+    rev: v0.1.1
+    hooks:
+      - id: openclaw-audit-secrets
+```
+
 ## Known Vulnerabilities Detected
 
 | CVE | CVSS | Description | Fixed In |

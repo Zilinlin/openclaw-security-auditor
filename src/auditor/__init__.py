@@ -1,6 +1,6 @@
 """OpenClaw Security Auditor - Security testing tool for OpenClaw deployments."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "Zilinlin"
 
 from .scanners import (

@@ -11,15 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-
-class DetectorSeverity(Enum):
-    """Severity levels for detector findings."""
-
-    CRITICAL = "critical"
-    HIGH = "high"
-    MEDIUM = "medium"
-    LOW = "low"
-    INFO = "info"
+from ..scanners.base import Severity as DetectorSeverity  # Unified with scanner Severity
 
 
 class VulnerabilityStatus(Enum):

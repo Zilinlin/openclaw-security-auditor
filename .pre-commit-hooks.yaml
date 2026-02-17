@@ -1,0 +1,17 @@
+- id: openclaw-audit-secrets
+  name: OpenClaw Secret Scanner
+  description: Scan for exposed API keys, credentials, and secrets
+  entry: openclaw-audit secrets
+  language: python
+  types: [file]
+  pass_filenames: false
+  always_run: true
+
+- id: openclaw-audit-config
+  name: OpenClaw Config Scanner
+  description: Scan OpenClaw configs for security misconfigurations
+  entry: openclaw-audit config
+  language: python
+  types: [yaml]
+  pass_filenames: false
+  always_run: true

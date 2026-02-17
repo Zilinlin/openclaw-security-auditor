@@ -1,0 +1,75 @@
+name: "OpenClaw Security Audit"
+description: "Scan OpenClaw deployments for CVEs, misconfigurations, exposed secrets, and runtime threats"
+author: "Zilinlin"
+
+branding:
+  icon: "shield"
+  color: "red"
+
+inputs:
+  target:
+    description: "Path to OpenClaw installation or config directory"
+    required: false
+    default: "."
+  version:
+    description: "OpenClaw version to check for CVEs"
+    required: false
+  checks:
+    description: "Comma-separated list of checks (config,cve,secrets)"
+    required: false
+    default: "config,cve,secrets"
+  fail-on:
+    description: "Minimum severity to fail (critical, high, medium, low, info)"
+    required: false
+    default: "high"
+
+outputs:
+  findings-count:
+    description: "Total number of findings"
+    value: ${{ steps.audit.outputs.findings-count }}
+  exit-code:
+    description: "Exit code (0=pass, 1=findings, 2=error)"
+    value: ${{ steps.audit.outputs.exit-code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install openclaw-security-auditor
+      shell: bash
+      run: pip install --quiet "${{ github.action_path }}"
+
+    - name: Run security audit
+      id: audit
+      shell: bash
+      run: |
+        EXIT_CODE=0
+        ARGS="--fail-on ${{ inputs.fail-on }} --json scan ${{ inputs.target }}"
+
+        if [ -n "${{ inputs.checks }}" ]; then
+          ARGS="$ARGS --checks ${{ inputs.checks }}"
+        fi
+
+        if [ -n "${{ inputs.version }}" ]; then
+          ARGS="$ARGS --version ${{ inputs.version }}"
+        fi
+
+        openclaw-audit $ARGS | tee /tmp/audit-output.json || EXIT_CODE=$?
+
+        FINDINGS=$(python3 -c "
+        import json, sys
+        try:
+            d = json.load(sys.stdin)
+            print(sum(len(r.get('findings', [])) for r in d.get('results', [])))
+        except Exception:
+            print('0')
+        " < /tmp/audit-output.json 2>/dev/null || echo "0")
+
+        echo "findings-count=$FINDINGS" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+
+        exit $EXIT_CODE
