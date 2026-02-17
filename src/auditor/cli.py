@@ -58,7 +58,7 @@ def print_banner():
     """Print tool banner."""
     banner = """
 ╔═══════════════════════════════════════════════════════════╗
-║        OpenClaw Security Auditor v0.1.0                   ║
+║        OpenClaw Security Auditor v0.1.1                   ║
 ║        https://github.com/Zilinlin/openclaw-security-auditor ║
 ╚═══════════════════════════════════════════════════════════╝
 """
