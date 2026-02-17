@@ -21,7 +21,6 @@ References:
 """
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 
 @dataclass
@@ -37,6 +36,7 @@ class Payload:
         severity: Expected severity if successful
         reference: Source of this technique
     """
+
     id: str
     category: str
     name: str
@@ -51,7 +51,7 @@ class Payload:
 # Reference: OWASP LLM01:2025 - Prompt Injection
 # =============================================================================
 
-INSTRUCTION_OVERRIDE_PAYLOADS: List[Payload] = [
+INSTRUCTION_OVERRIDE_PAYLOADS: list[Payload] = [
     Payload(
         id="io_001",
         category="instruction_override",
@@ -96,7 +96,7 @@ INSTRUCTION_OVERRIDE_PAYLOADS: List[Payload] = [
 # Reference: Snyk ToxicSkills Research
 # =============================================================================
 
-ROLE_HIJACK_PAYLOADS: List[Payload] = [
+ROLE_HIJACK_PAYLOADS: list[Payload] = [
     Payload(
         id="rh_001",
         category="role_hijacking",
@@ -132,7 +132,7 @@ ROLE_HIJACK_PAYLOADS: List[Payload] = [
 # Reference: Penligent Prompt Injection Research
 # =============================================================================
 
-CONTEXT_MANIPULATION_PAYLOADS: List[Payload] = [
+CONTEXT_MANIPULATION_PAYLOADS: list[Payload] = [
     Payload(
         id="cm_001",
         category="context_manipulation",
@@ -177,7 +177,7 @@ CONTEXT_MANIPULATION_PAYLOADS: List[Payload] = [
 # Reference: Snyk ToxicSkills - Obfuscation Techniques
 # =============================================================================
 
-ENCODED_INJECTION_PAYLOADS: List[Payload] = [
+ENCODED_INJECTION_PAYLOADS: list[Payload] = [
     Payload(
         id="ei_001",
         category="encoded_injection",
@@ -222,7 +222,7 @@ ENCODED_INJECTION_PAYLOADS: List[Payload] = [
 # Reference: OWASP LLM01:2025, Community Research
 # =============================================================================
 
-JAILBREAK_PAYLOADS: List[Payload] = [
+JAILBREAK_PAYLOADS: list[Payload] = [
     Payload(
         id="jb_001",
         category="jailbreak",
@@ -266,12 +266,12 @@ JAILBREAK_PAYLOADS: List[Payload] = [
 # COMBINED PAYLOAD LIST
 # =============================================================================
 
-ALL_PAYLOADS: List[Payload] = (
-    INSTRUCTION_OVERRIDE_PAYLOADS +
-    ROLE_HIJACK_PAYLOADS +
-    CONTEXT_MANIPULATION_PAYLOADS +
-    ENCODED_INJECTION_PAYLOADS +
-    JAILBREAK_PAYLOADS
+ALL_PAYLOADS: list[Payload] = (
+    INSTRUCTION_OVERRIDE_PAYLOADS
+    + ROLE_HIJACK_PAYLOADS
+    + CONTEXT_MANIPULATION_PAYLOADS
+    + ENCODED_INJECTION_PAYLOADS
+    + JAILBREAK_PAYLOADS
 )
 
 
@@ -279,17 +279,18 @@ ALL_PAYLOADS: List[Payload] = (
 # UTILITY FUNCTIONS
 # =============================================================================
 
-def get_payload_categories() -> List[str]:
+
+def get_payload_categories() -> list[str]:
     """Get list of all payload categories."""
-    return list(set(p.category for p in ALL_PAYLOADS))
+    return list({p.category for p in ALL_PAYLOADS})
 
 
-def get_payloads_by_category(category: str) -> List[Payload]:
+def get_payloads_by_category(category: str) -> list[Payload]:
     """Get all payloads in a specific category."""
     return [p for p in ALL_PAYLOADS if p.category == category]
 
 
-def get_payloads_by_severity(severity: str) -> List[Payload]:
+def get_payloads_by_severity(severity: str) -> list[Payload]:
     """Get all payloads with a specific severity level."""
     return [p for p in ALL_PAYLOADS if p.severity == severity]
 

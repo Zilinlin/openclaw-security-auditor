@@ -3,11 +3,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 
 class Severity(Enum):
     """Severity levels for security findings."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -18,13 +19,14 @@ class Severity(Enum):
 @dataclass
 class Finding:
     """Represents a security finding."""
+
     title: str
     severity: Severity
     description: str
     location: Optional[str] = None
     cve: Optional[str] = None
     remediation: Optional[str] = None
-    references: List[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert finding to dictionary."""
@@ -42,9 +44,10 @@ class Finding:
 @dataclass
 class ScanResult:
     """Result of a security scan."""
+
     scanner_name: str
-    findings: List[Finding] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     scanned_items: int = 0
 
     @property
@@ -69,7 +72,7 @@ class ScanResult:
                 "medium": sum(1 for f in self.findings if f.severity == Severity.MEDIUM),
                 "low": sum(1 for f in self.findings if f.severity == Severity.LOW),
                 "info": sum(1 for f in self.findings if f.severity == Severity.INFO),
-            }
+            },
         }
 
 

@@ -3,24 +3,24 @@
 These tests verify payload structure and integrity.
 """
 
-import unittest
-import sys
 import os
+import sys
+import unittest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from auditor.payloads.injection_payloads import (
     ALL_PAYLOADS,
-    INSTRUCTION_OVERRIDE_PAYLOADS,
-    ROLE_HIJACK_PAYLOADS,
     CONTEXT_MANIPULATION_PAYLOADS,
     ENCODED_INJECTION_PAYLOADS,
+    INSTRUCTION_OVERRIDE_PAYLOADS,
     JAILBREAK_PAYLOADS,
+    ROLE_HIJACK_PAYLOADS,
     Payload,
+    get_payload_by_id,
     get_payload_categories,
     get_payloads_by_category,
     get_payloads_by_severity,
-    get_payload_by_id,
 )
 
 
@@ -89,11 +89,11 @@ class TestPayloadLibrary(unittest.TestCase):
     def test_get_all_payloads(self):
         """Test getting all payloads."""
         total_expected = (
-            len(INSTRUCTION_OVERRIDE_PAYLOADS) +
-            len(ROLE_HIJACK_PAYLOADS) +
-            len(CONTEXT_MANIPULATION_PAYLOADS) +
-            len(ENCODED_INJECTION_PAYLOADS) +
-            len(JAILBREAK_PAYLOADS)
+            len(INSTRUCTION_OVERRIDE_PAYLOADS)
+            + len(ROLE_HIJACK_PAYLOADS)
+            + len(CONTEXT_MANIPULATION_PAYLOADS)
+            + len(ENCODED_INJECTION_PAYLOADS)
+            + len(JAILBREAK_PAYLOADS)
         )
         self.assertEqual(len(ALL_PAYLOADS), total_expected)
 
@@ -101,8 +101,7 @@ class TestPayloadLibrary(unittest.TestCase):
         """Test that payload references are non-empty strings."""
         for payload in ALL_PAYLOADS:
             self.assertTrue(
-                len(payload.reference) > 0,
-                f"Payload '{payload.name}' has empty reference"
+                len(payload.reference) > 0, f"Payload '{payload.name}' has empty reference"
             )
 
     def test_no_duplicate_payload_ids(self):
@@ -128,10 +127,11 @@ class TestPayloadSafety(unittest.TestCase):
             payload_text = payload.template.lower()
             for pattern in destructive_patterns:
                 self.assertNotIn(
-                    pattern.lower(), payload_text,
-                    f"Destructive pattern '{pattern}' found in {payload.name}"
+                    pattern.lower(),
+                    payload_text,
+                    f"Destructive pattern '{pattern}' found in {payload.name}",
                 )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

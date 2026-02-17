@@ -4,23 +4,21 @@ These tests verify the detector logic without requiring actual network connectio
 Mock servers are used to simulate vulnerable and patched OpenClaw instances.
 """
 
-import json
+import os
 import socket
+import sys
 import threading
 import unittest
-from unittest.mock import patch, MagicMock
-
-import sys
-import os
+from unittest.mock import MagicMock, patch
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from auditor.detectors.base import VulnerabilityStatus
-from auditor.detectors.websocket_detector import WebSocketOriginDetector
-from auditor.detectors.auth_detector import AuthWeaknessDetector
-from auditor.detectors.prompt_injection_detector import PromptInjectionDetector
 from auditor.detectors.api_bypass_detector import APIHookBypassDetector
+from auditor.detectors.auth_detector import AuthWeaknessDetector
+from auditor.detectors.base import VulnerabilityStatus
+from auditor.detectors.prompt_injection_detector import PromptInjectionDetector
+from auditor.detectors.websocket_detector import WebSocketOriginDetector
 
 
 class MockServer:
@@ -41,7 +39,7 @@ class MockServer:
         """Start the mock server."""
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.server.bind(('127.0.0.1', self.port))
+        self.server.bind(("127.0.0.1", self.port))
         self.server.listen(5)
         self.server.settimeout(1)
         self.running = True
@@ -53,7 +51,7 @@ class MockServer:
         while self.running:
             try:
                 client, addr = self.server.accept()
-                data = client.recv(4096).decode('utf-8', errors='ignore')
+                data = client.recv(4096).decode("utf-8", errors="ignore")
 
                 # Find matching response
                 response = b"HTTP/1.1 404 Not Found\r\n\r\n"
@@ -83,7 +81,7 @@ class TestWebSocketOriginDetector(unittest.TestCase):
 
     def test_vulnerable_server(self):
         """Test detection of vulnerable server that accepts any origin."""
-        server = MockServer(19001)
+        MockServer(19001)
 
         # The detector generates its own random ws_key and computes the accept key.
         # Our mock server needs to return 101 with a valid Sec-WebSocket-Accept header.
@@ -91,7 +89,7 @@ class TestWebSocketOriginDetector(unittest.TestCase):
         # Instead, we patch _test_origin to simulate a vulnerable response.
         detector = WebSocketOriginDetector()
 
-        with patch.object(detector, '_test_origin', return_value=(True, {'status_code': 101})):
+        with patch.object(detector, "_test_origin", return_value=(True, {"status_code": 101})):
             result = detector.detect("127.0.0.1", 19001)
 
         # Should detect vulnerability - check via findings
@@ -104,7 +102,7 @@ class TestWebSocketOriginDetector(unittest.TestCase):
         """Test that patched server rejects bad origins."""
         detector = WebSocketOriginDetector()
 
-        with patch.object(detector, '_test_origin', return_value=(False, {'status_code': 403})):
+        with patch.object(detector, "_test_origin", return_value=(False, {"status_code": 403})):
             result = detector.detect("127.0.0.1", 19002)
 
         # Should not detect vulnerability
@@ -117,7 +115,7 @@ class TestWebSocketOriginDetector(unittest.TestCase):
         import base64
         import hashlib
 
-        server = MockServer(19011)
+        MockServer(19011)
         GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
         # We need a handler that computes the accept key dynamically.
@@ -132,7 +130,7 @@ class TestWebSocketOriginDetector(unittest.TestCase):
             def start(self):
                 self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                self.server.bind(('127.0.0.1', self.port))
+                self.server.bind(("127.0.0.1", self.port))
                 self.server.listen(5)
                 self.server.settimeout(2)
                 self.running = True
@@ -143,12 +141,12 @@ class TestWebSocketOriginDetector(unittest.TestCase):
                 while self.running:
                     try:
                         client, _ = self.server.accept()
-                        data = client.recv(4096).decode('utf-8', errors='ignore')
+                        data = client.recv(4096).decode("utf-8", errors="ignore")
                         # Extract Sec-WebSocket-Key from request
                         key = None
-                        for line in data.split('\r\n'):
-                            if line.lower().startswith('sec-websocket-key:'):
-                                key = line.split(':', 1)[1].strip()
+                        for line in data.split("\r\n"):
+                            if line.lower().startswith("sec-websocket-key:"):
+                                key = line.split(":", 1)[1].strip()
                                 break
 
                         if key:
@@ -204,18 +202,17 @@ class TestAuthWeaknessDetector(unittest.TestCase):
         mock_response.content = b'{"status": "running"}'
         mock_response.json.return_value = {"status": "running"}
 
-        with patch('auditor.detectors.auth_detector.requests') as mock_requests:
+        with patch("auditor.detectors.auth_detector.requests") as mock_requests:
             mock_requests.get.return_value = mock_response
             mock_requests.post.return_value = mock_response
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 19003)
 
         # Should detect vulnerability
         self.assertTrue(result.is_vulnerable)
         vulnerable_findings = [
-            f for f in result.findings
-            if f.status == VulnerabilityStatus.VULNERABLE
+            f for f in result.findings if f.status == VulnerabilityStatus.VULNERABLE
         ]
         self.assertTrue(len(vulnerable_findings) > 0)
 
@@ -228,10 +225,10 @@ class TestAuthWeaknessDetector(unittest.TestCase):
         mock_response.status_code = 401
         mock_response.content = b'{"error": "authentication required"}'
 
-        with patch('auditor.detectors.auth_detector.requests') as mock_requests:
+        with patch("auditor.detectors.auth_detector.requests") as mock_requests:
             mock_requests.get.return_value = mock_response
             mock_requests.post.return_value = mock_response
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 19004)
 
@@ -268,8 +265,11 @@ class TestPromptInjectionDetector(unittest.TestCase):
             # (e.g., base64). The key requirement is that _test_payload can substitute
             # the canary and detect it. For direct payloads, verify the placeholder.
             if payload.category != "encoded_injection":
-                self.assertIn("{canary}", payload.payload,
-                              f"Payload '{payload.name}' missing {{canary}} placeholder")
+                self.assertIn(
+                    "{canary}",
+                    payload.payload,
+                    f"Payload '{payload.name}' missing {{canary}} placeholder",
+                )
 
     def test_vulnerable_response_detected(self):
         """Test detection when canary is leaked in response."""
@@ -278,25 +278,24 @@ class TestPromptInjectionDetector(unittest.TestCase):
         # Mock the requests.post to return a response containing the canary
         def mock_post(*args, **kwargs):
             # Extract the canary from the request payload
-            data = kwargs.get('json', {})
-            message = data.get('messages', [{}])[0].get('content', '')
+            data = kwargs.get("json", {})
+            message = data.get("messages", [{}])[0].get("content", "")
             # Find the CANARY_ token in the message
             import re
-            match = re.search(r'CANARY_([a-f0-9]+)', message)
+
+            match = re.search(r"CANARY_([a-f0-9]+)", message)
             canary_value = match.group(0) if match else "CANARY_leaked"
 
             response = MagicMock()
             response.status_code = 200
             response.json.return_value = {
-                "choices": [{
-                    "message": {"content": f"Sure! {canary_value}"}
-                }]
+                "choices": [{"message": {"content": f"Sure! {canary_value}"}}]
             }
             return response
 
-        with patch('auditor.detectors.prompt_injection_detector.requests') as mock_requests:
+        with patch("auditor.detectors.prompt_injection_detector.requests") as mock_requests:
             mock_requests.post.side_effect = mock_post
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 19005, payloads=["direct_override"])
 
@@ -312,14 +311,12 @@ class TestPromptInjectionDetector(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "choices": [{
-                "message": {"content": "I cannot follow those instructions."}
-            }]
+            "choices": [{"message": {"content": "I cannot follow those instructions."}}]
         }
 
-        with patch('auditor.detectors.prompt_injection_detector.requests') as mock_requests:
+        with patch("auditor.detectors.prompt_injection_detector.requests") as mock_requests:
             mock_requests.post.return_value = mock_response
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 19005, payloads=["direct_override"])
 
@@ -348,9 +345,9 @@ class TestAPIHookBypassDetector(unittest.TestCase):
         mock_response.headers = {}
         mock_response.json.return_value = {"choices": [{"message": {"content": "hello"}}]}
 
-        with patch('auditor.detectors.api_bypass_detector.requests') as mock_requests:
+        with patch("auditor.detectors.api_bypass_detector.requests") as mock_requests:
             mock_requests.post.return_value = mock_response
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 18789)
 
@@ -368,9 +365,9 @@ class TestAPIHookBypassDetector(unittest.TestCase):
         mock_response.headers = {"X-Security-Hook-Applied": "true"}
         mock_response.json.return_value = {"choices": [{"message": {"content": "filtered"}}]}
 
-        with patch('auditor.detectors.api_bypass_detector.requests') as mock_requests:
+        with patch("auditor.detectors.api_bypass_detector.requests") as mock_requests:
             mock_requests.post.return_value = mock_response
-            mock_requests.exceptions = __import__('requests').exceptions
+            mock_requests.exceptions = __import__("requests").exceptions
 
             result = detector.detect("127.0.0.1", 18789)
 
@@ -401,7 +398,7 @@ class TestDetectorBase(unittest.TestCase):
         """Test DetectorResult serialization."""
         detector = WebSocketOriginDetector()
 
-        with patch.object(detector, '_test_origin', return_value=(False, {'status_code': 403})):
+        with patch.object(detector, "_test_origin", return_value=(False, {"status_code": 403})):
             result = detector.detect("127.0.0.1", 19999)
 
         result_dict = result.to_dict()
@@ -412,5 +409,5 @@ class TestDetectorBase(unittest.TestCase):
         self.assertEqual(result_dict["detector"], "websocket_origin")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

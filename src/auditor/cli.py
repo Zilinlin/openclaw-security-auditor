@@ -3,30 +3,26 @@
 import argparse
 import json
 import sys
-from pathlib import Path
-from typing import List, Optional
 
+from .detectors import (
+    DETECTORS,
+    APIHookBypassDetector,
+    AuthWeaknessDetector,
+    PromptInjectionDetector,
+    WebSocketOriginDetector,
+)
 from .scanners import (
     SCANNERS,
     ConfigScanner,
     CVEScanner,
     NetworkScanner,
     SecretScanner,
-    Severity,
-)
-from .detectors import (
-    DETECTORS,
-    WebSocketOriginDetector,
-    PromptInjectionDetector,
-    APIHookBypassDetector,
-    AuthWeaknessDetector,
-    DetectorSeverity,
-    VulnerabilityStatus,
 )
 
 
 class Colors:
     """ANSI color codes for terminal output."""
+
     RED = "\033[91m"
     YELLOW = "\033[93m"
     GREEN = "\033[92m"
@@ -47,7 +43,7 @@ def colorize(text: str, color: str) -> str:
 def severity_color(severity) -> str:
     """Get color for severity level."""
     # Handle both Severity and DetectorSeverity
-    severity_value = severity.value if hasattr(severity, 'value') else str(severity)
+    severity_value = severity.value if hasattr(severity, "value") else str(severity)
     colors = {
         "critical": Colors.RED + Colors.BOLD,
         "high": Colors.RED,
@@ -72,39 +68,40 @@ def print_banner():
 def print_finding(finding, index: int):
     """Print a single finding in human-readable format."""
     # Handle both scanner findings and detector findings
-    if hasattr(finding, 'severity') and finding.severity:
-        severity_value = finding.severity.value if hasattr(finding.severity, 'value') else str(finding.severity)
-        severity_str = colorize(
-            f"[{severity_value.upper()}]",
-            severity_color(finding.severity)
+    if hasattr(finding, "severity") and finding.severity:
+        severity_value = (
+            finding.severity.value if hasattr(finding.severity, "value") else str(finding.severity)
         )
+        severity_str = colorize(f"[{severity_value.upper()}]", severity_color(finding.severity))
     else:
         severity_str = colorize("[INFO]", Colors.BLUE)
 
     print(f"\n{index}. {severity_str} {colorize(finding.title, Colors.BOLD)}")
 
-    if hasattr(finding, 'cve') and finding.cve:
+    if hasattr(finding, "cve") and finding.cve:
         print(f"   CVE: {colorize(finding.cve, Colors.MAGENTA)}")
 
-    if hasattr(finding, 'location') and finding.location:
+    if hasattr(finding, "location") and finding.location:
         print(f"   Location: {finding.location}")
 
-    if hasattr(finding, 'status') and finding.status:
-        status_value = finding.status.value if hasattr(finding.status, 'value') else str(finding.status)
+    if hasattr(finding, "status") and finding.status:
+        status_value = (
+            finding.status.value if hasattr(finding.status, "value") else str(finding.status)
+        )
         status_color = Colors.RED if status_value == "vulnerable" else Colors.GREEN
         print(f"   Status: {colorize(status_value.upper(), status_color)}")
 
     if finding.description:
         print(f"   {finding.description}")
 
-    if hasattr(finding, 'evidence') and finding.evidence:
+    if hasattr(finding, "evidence") and finding.evidence:
         print(f"   {colorize('Evidence:', Colors.YELLOW)} {finding.evidence}")
 
-    if hasattr(finding, 'remediation') and finding.remediation:
+    if hasattr(finding, "remediation") and finding.remediation:
         print(f"   {colorize('Remediation:', Colors.GREEN)} {finding.remediation}")
 
-    if hasattr(finding, 'references') and finding.references:
-        print(f"   References:")
+    if hasattr(finding, "references") and finding.references:
+        print("   References:")
         for ref in finding.references:
             print(f"     - {ref}")
 
@@ -122,15 +119,15 @@ def print_summary(results: list):
 
     for r in results:
         for f in r.findings:
-            if hasattr(f, 'severity') and f.severity:
-                sev = f.severity.value if hasattr(f.severity, 'value') else str(f.severity)
-                if sev.lower() == 'critical':
+            if hasattr(f, "severity") and f.severity:
+                sev = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+                if sev.lower() == "critical":
                     critical += 1
-                elif sev.lower() == 'high':
+                elif sev.lower() == "high":
                     high += 1
-                elif sev.lower() == 'medium':
+                elif sev.lower() == "medium":
                     medium += 1
-                elif sev.lower() == 'low':
+                elif sev.lower() == "low":
                     low += 1
                 else:
                     info += 1
@@ -154,10 +151,12 @@ def print_summary(results: list):
         print(colorize(f"  Info: {info}", Colors.BLUE))
 
     if critical > 0 or high > 0:
-        print(colorize(
-            "\nCritical or high severity issues found! Immediate action required.",
-            Colors.RED + Colors.BOLD
-        ))
+        print(
+            colorize(
+                "\nCritical or high severity issues found! Immediate action required.",
+                Colors.RED + Colors.BOLD,
+            )
+        )
 
 
 def print_detector_summary(results: list):
@@ -170,20 +169,17 @@ def print_detector_summary(results: list):
     print("=" * 60)
 
     if vulnerable_count > 0:
-        print(colorize(
-            f"\nVulnerable: {vulnerable_count}/{total} detectors found issues",
-            Colors.RED
-        ))
+        print(
+            colorize(f"\nVulnerable: {vulnerable_count}/{total} detectors found issues", Colors.RED)
+        )
     else:
-        print(colorize(
-            f"\nNo vulnerabilities detected ({total} checks performed)",
-            Colors.GREEN
-        ))
+        print(colorize(f"\nNo vulnerabilities detected ({total} checks performed)", Colors.GREEN))
 
 
 # =============================================================================
 # STATIC SCANNER COMMANDS
 # =============================================================================
+
 
 def cmd_scan(args):
     """Run all or selected scanners."""
@@ -274,10 +270,7 @@ def cmd_cve(args):
             print_finding(finding, i)
 
         if not result.findings and not result.errors:
-            print(colorize(
-                f"\n✓ No known CVEs affect version {args.version}",
-                Colors.GREEN
-            ))
+            print(colorize(f"\n✓ No known CVEs affect version {args.version}", Colors.GREEN))
         print_summary([result])
 
     return check_severity_threshold([result], args.fail_on)
@@ -319,6 +312,7 @@ def cmd_network(args):
 # =============================================================================
 # DYNAMIC DETECTOR COMMANDS
 # =============================================================================
+
 
 def cmd_detect(args):
     """Run all or selected dynamic detectors."""
@@ -434,10 +428,12 @@ def cmd_detect_injection(args):
 
         # Print payload stats
         if result.metadata.get("vulnerable_count"):
-            print(colorize(
-                f"\nVulnerable to {result.metadata['vulnerable_count']}/{result.metadata['total_tested']} payloads",
-                Colors.RED
-            ))
+            print(
+                colorize(
+                    f"\nVulnerable to {result.metadata['vulnerable_count']}/{result.metadata['total_tested']} payloads",
+                    Colors.RED,
+                )
+            )
 
     return check_severity_threshold([result], args.fail_on)
 
@@ -604,10 +600,7 @@ def main():
     # =========================================================================
 
     # detect command (run all detectors)
-    detect_parser = subparsers.add_parser(
-        "detect",
-        help="Run dynamic vulnerability detection"
-    )
+    detect_parser = subparsers.add_parser("detect", help="Run dynamic vulnerability detection")
     detect_parser.add_argument("--host", required=True, help="Target host")
     detect_parser.add_argument(
         "--port",
@@ -623,8 +616,7 @@ def main():
 
     # detect-websocket command
     ws_parser = subparsers.add_parser(
-        "detect-websocket",
-        help="Test WebSocket Origin bypass (CVE-2026-25253)"
+        "detect-websocket", help="Test WebSocket Origin bypass (CVE-2026-25253)"
     )
     ws_parser.add_argument("--host", required=True, help="Target host")
     ws_parser.add_argument(
@@ -637,8 +629,7 @@ def main():
 
     # detect-injection command
     injection_parser = subparsers.add_parser(
-        "detect-injection",
-        help="Test prompt injection vulnerabilities"
+        "detect-injection", help="Test prompt injection vulnerabilities"
     )
     injection_parser.add_argument("--host", required=True, help="Target host")
     injection_parser.add_argument(
@@ -659,10 +650,7 @@ def main():
     )
 
     # detect-api-bypass command
-    api_parser = subparsers.add_parser(
-        "detect-api-bypass",
-        help="Test API security hook bypass"
-    )
+    api_parser = subparsers.add_parser("detect-api-bypass", help="Test API security hook bypass")
     api_parser.add_argument("--host", required=True, help="Target host")
     api_parser.add_argument(
         "--port",
@@ -674,8 +662,7 @@ def main():
 
     # detect-auth command
     auth_parser = subparsers.add_parser(
-        "detect-auth",
-        help="Test authentication weaknesses (CVE-2026-25157)"
+        "detect-auth", help="Test authentication weaknesses (CVE-2026-25157)"
     )
     auth_parser.add_argument("--host", required=True, help="Target host")
     auth_parser.add_argument(

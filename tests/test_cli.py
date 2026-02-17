@@ -1,26 +1,30 @@
 """Integration tests for the CLI."""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from auditor.cli import check_severity_threshold, SEVERITY_ORDER, EXIT_CODE_OK, EXIT_CODE_FINDINGS
-from auditor.scanners.base import ScanResult, Finding, Severity
+from auditor.cli import EXIT_CODE_FINDINGS, EXIT_CODE_OK, check_severity_threshold
+from auditor.scanners.base import Finding, ScanResult, Severity
 
 
 def run_cli(*args):
     """Run the CLI as a subprocess and return (returncode, stdout, stderr)."""
     cmd = [sys.executable, "-m", "auditor.cli"] + list(args)
     env = os.environ.copy()
-    env["PYTHONPATH"] = os.path.join(os.path.dirname(__file__), '..', 'src')
+    env["PYTHONPATH"] = os.path.join(os.path.dirname(__file__), "..", "src")
     result = subprocess.run(
-        cmd, capture_output=True, text=True, env=env, timeout=30,
+        cmd,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
     )
     return result.returncode, result.stdout, result.stderr
 
@@ -32,83 +36,63 @@ class TestCheckSeverityThreshold(unittest.TestCase):
         """Create a ScanResult with findings at given severity levels."""
         r = ScanResult(scanner_name="test")
         for sev in severities:
-            r.findings.append(Finding(
-                title="Test",
-                severity=Severity(sev),
-                description="test",
-            ))
+            r.findings.append(
+                Finding(
+                    title="Test",
+                    severity=Severity(sev),
+                    description="test",
+                )
+            )
         return r
 
     def test_critical_fails_on_high(self):
         """Critical finding should fail when threshold is high."""
         result = self._make_result("critical")
-        self.assertEqual(
-            check_severity_threshold([result], "high"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([result], "high"), EXIT_CODE_FINDINGS)
 
     def test_high_fails_on_high(self):
         """High finding should fail when threshold is high."""
         result = self._make_result("high")
-        self.assertEqual(
-            check_severity_threshold([result], "high"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([result], "high"), EXIT_CODE_FINDINGS)
 
     def test_medium_passes_on_high(self):
         """Medium finding should pass when threshold is high."""
         result = self._make_result("medium")
-        self.assertEqual(
-            check_severity_threshold([result], "high"), EXIT_CODE_OK
-        )
+        self.assertEqual(check_severity_threshold([result], "high"), EXIT_CODE_OK)
 
     def test_medium_fails_on_medium(self):
         """Medium finding should fail when threshold is medium."""
         result = self._make_result("medium")
-        self.assertEqual(
-            check_severity_threshold([result], "medium"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([result], "medium"), EXIT_CODE_FINDINGS)
 
     def test_low_passes_on_medium(self):
         """Low finding should pass when threshold is medium."""
         result = self._make_result("low")
-        self.assertEqual(
-            check_severity_threshold([result], "medium"), EXIT_CODE_OK
-        )
+        self.assertEqual(check_severity_threshold([result], "medium"), EXIT_CODE_OK)
 
     def test_critical_only_fails_on_critical(self):
         """Only critical should fail when threshold is critical."""
         high_result = self._make_result("high")
         crit_result = self._make_result("critical")
-        self.assertEqual(
-            check_severity_threshold([high_result], "critical"), EXIT_CODE_OK
-        )
-        self.assertEqual(
-            check_severity_threshold([crit_result], "critical"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([high_result], "critical"), EXIT_CODE_OK)
+        self.assertEqual(check_severity_threshold([crit_result], "critical"), EXIT_CODE_FINDINGS)
 
     def test_info_fails_on_info(self):
         """Info finding should fail when threshold is info."""
         result = self._make_result("info")
-        self.assertEqual(
-            check_severity_threshold([result], "info"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([result], "info"), EXIT_CODE_FINDINGS)
 
     def test_empty_results_pass(self):
         """No findings should always pass."""
         result = ScanResult(scanner_name="test")
-        self.assertEqual(
-            check_severity_threshold([result], "info"), EXIT_CODE_OK
-        )
+        self.assertEqual(check_severity_threshold([result], "info"), EXIT_CODE_OK)
 
     def test_multiple_results(self):
         """Threshold check across multiple result objects."""
         r1 = self._make_result("low")
         r2 = self._make_result("medium")
-        self.assertEqual(
-            check_severity_threshold([r1, r2], "high"), EXIT_CODE_OK
-        )
-        self.assertEqual(
-            check_severity_threshold([r1, r2], "medium"), EXIT_CODE_FINDINGS
-        )
+        self.assertEqual(check_severity_threshold([r1, r2], "high"), EXIT_CODE_OK)
+        self.assertEqual(check_severity_threshold([r1, r2], "medium"), EXIT_CODE_FINDINGS)
 
 
 class TestCLIIntegration(unittest.TestCase):
@@ -149,9 +133,7 @@ class TestCLIIntegration(unittest.TestCase):
         """Secret scan should detect exposed API keys."""
         with tempfile.TemporaryDirectory() as tmpdir:
             bad_file = Path(tmpdir) / "config.py"
-            bad_file.write_text(
-                'KEY = "sk-aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdefghijkl"\n'
-            )
+            bad_file.write_text('KEY = "sk-aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890abcdefghijkl"\n')
 
             rc, stdout, stderr = run_cli("secrets", tmpdir)
             self.assertEqual(rc, 1)
@@ -175,9 +157,7 @@ class TestCLIIntegration(unittest.TestCase):
 
     def test_fail_on_critical_only(self):
         """--fail-on critical should pass for high-only findings."""
-        rc, stdout, stderr = run_cli(
-            "--fail-on", "critical", "cve", "--version", "2026.2.5"
-        )
+        rc, stdout, stderr = run_cli("--fail-on", "critical", "cve", "--version", "2026.2.5")
         # Version 2026.2.5 has 1 CRITICAL CVE, so should still fail
         self.assertEqual(rc, 1)
 
@@ -185,9 +165,7 @@ class TestCLIIntegration(unittest.TestCase):
         """--fail-on info should fail on any finding."""
         with tempfile.TemporaryDirectory() as tmpdir:
             config = Path(tmpdir) / "config.yaml"
-            config.write_text(
-                "agent:\n  name: Test\n\ngateway:\n  port: 18789\n"
-            )
+            config.write_text("agent:\n  name: Test\n\ngateway:\n  port: 18789\n")
 
             rc, stdout, stderr = run_cli("--fail-on", "info", "config", tmpdir)
             # Should find at least the default port (LOW) and no-auth (CRITICAL)
@@ -218,5 +196,5 @@ class TestCLIIntegration(unittest.TestCase):
             self.assertIn("No authentication configured", titles)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

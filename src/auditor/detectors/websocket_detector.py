@@ -19,7 +19,6 @@ import hashlib
 import os
 import socket
 import ssl
-from typing import Optional, Tuple
 
 from .base import (
     BaseDetector,
@@ -68,11 +67,7 @@ class WebSocketOriginDetector(BaseDetector):
     TIMEOUT = 5
 
     def detect(
-        self,
-        host: str,
-        port: int = 18789,
-        use_ssl: bool = False,
-        **kwargs
+        self, host: str, port: int = 18789, use_ssl: bool = False, **kwargs
     ) -> DetectorResult:
         """
         Test if WebSocket server validates Origin header.
@@ -90,32 +85,32 @@ class WebSocketOriginDetector(BaseDetector):
         # Test each spoofed origin
         for origin in self.TEST_ORIGINS:
             try:
-                is_vulnerable, response_info = self._test_origin(
-                    host, port, origin, use_ssl
-                )
+                is_vulnerable, response_info = self._test_origin(host, port, origin, use_ssl)
 
                 if is_vulnerable:
-                    result.findings.append(DetectorFinding(
-                        title="WebSocket Origin Validation Bypass",
-                        status=VulnerabilityStatus.VULNERABLE,
-                        severity=DetectorSeverity.CRITICAL,
-                        cve=self.cve,
-                        description=(
-                            f"The WebSocket server accepted a connection with "
-                            f"spoofed Origin header '{origin}'. This enables "
-                            f"Cross-Site WebSocket Hijacking (CSWSH) attacks, "
-                            f"allowing attackers to steal authentication tokens "
-                            f"via malicious web pages."
-                        ),
-                        evidence=f"Server accepted WebSocket upgrade with Origin: {origin}",
-                        remediation=(
-                            "Upgrade to OpenClaw v2026.1.29 or later. "
-                            "The fix adds a gateway URL confirmation modal "
-                            "preventing auto-connect behavior. "
-                            "Additionally, configure allowed origins in settings."
-                        ),
-                        references=self.references,
-                    ))
+                    result.findings.append(
+                        DetectorFinding(
+                            title="WebSocket Origin Validation Bypass",
+                            status=VulnerabilityStatus.VULNERABLE,
+                            severity=DetectorSeverity.CRITICAL,
+                            cve=self.cve,
+                            description=(
+                                f"The WebSocket server accepted a connection with "
+                                f"spoofed Origin header '{origin}'. This enables "
+                                f"Cross-Site WebSocket Hijacking (CSWSH) attacks, "
+                                f"allowing attackers to steal authentication tokens "
+                                f"via malicious web pages."
+                            ),
+                            evidence=f"Server accepted WebSocket upgrade with Origin: {origin}",
+                            remediation=(
+                                "Upgrade to OpenClaw v2026.1.29 or later. "
+                                "The fix adds a gateway URL confirmation modal "
+                                "preventing auto-connect behavior. "
+                                "Additionally, configure allowed origins in settings."
+                            ),
+                            references=self.references,
+                        )
+                    )
                     # Found vulnerability, no need to test more origins
                     return result
 
@@ -129,25 +124,21 @@ class WebSocketOriginDetector(BaseDetector):
 
         # If we get here, no vulnerability was found
         if not result.findings and not result.errors:
-            result.findings.append(DetectorFinding(
-                title="WebSocket Origin Validation",
-                status=VulnerabilityStatus.NOT_VULNERABLE,
-                description=(
-                    "The WebSocket server properly rejects connections with "
-                    "unauthorized Origin headers. CSWSH attacks are mitigated."
-                ),
-                references=self.references,
-            ))
+            result.findings.append(
+                DetectorFinding(
+                    title="WebSocket Origin Validation",
+                    status=VulnerabilityStatus.NOT_VULNERABLE,
+                    description=(
+                        "The WebSocket server properly rejects connections with "
+                        "unauthorized Origin headers. CSWSH attacks are mitigated."
+                    ),
+                    references=self.references,
+                )
+            )
 
         return result
 
-    def _test_origin(
-        self,
-        host: str,
-        port: int,
-        origin: str,
-        use_ssl: bool
-    ) -> Tuple[bool, dict]:
+    def _test_origin(self, host: str, port: int, origin: str, use_ssl: bool) -> tuple[bool, dict]:
         """
         Test if server accepts WebSocket connection with given Origin.
 
@@ -155,7 +146,7 @@ class WebSocketOriginDetector(BaseDetector):
             Tuple of (is_vulnerable, response_info)
         """
         # Generate WebSocket key
-        ws_key = base64.b64encode(os.urandom(16)).decode('utf-8')
+        ws_key = base64.b64encode(os.urandom(16)).decode("utf-8")
 
         # Build WebSocket upgrade request
         # Reference: RFC 6455 - The WebSocket Protocol
@@ -182,59 +173,57 @@ class WebSocketOriginDetector(BaseDetector):
                 sock = context.wrap_socket(sock, server_hostname=host)
 
             sock.connect((host, port))
-            sock.send(request.encode('utf-8'))
+            sock.send(request.encode("utf-8"))
 
             # Receive response
-            response = sock.recv(4096).decode('utf-8', errors='ignore')
+            response = sock.recv(4096).decode("utf-8", errors="ignore")
 
             # Parse response
             response_info = self._parse_http_response(response)
 
             # Check if WebSocket upgrade was accepted
             # 101 Switching Protocols indicates successful upgrade
-            is_vulnerable = response_info.get('status_code') == 101
+            is_vulnerable = response_info.get("status_code") == 101
 
             # Also check for the expected Sec-WebSocket-Accept header
             if is_vulnerable:
                 expected_accept = self._compute_accept_key(ws_key)
-                actual_accept = response_info.get('headers', {}).get(
-                    'sec-websocket-accept', ''
-                )
+                actual_accept = response_info.get("headers", {}).get("sec-websocket-accept", "")
                 # Verify it's a real WebSocket response
-                is_vulnerable = (actual_accept == expected_accept)
+                is_vulnerable = actual_accept == expected_accept
 
             return is_vulnerable, response_info
 
         finally:
             sock.close()
 
-    def _parse_http_response(self, response: str) -> dict:
+    def _parse_http_response(self, response: str) -> dict:  # type: ignore[type-arg]
         """Parse HTTP response into status code and headers."""
-        result = {
-            'status_code': None,
-            'status_text': '',
-            'headers': {},
+        result: dict = {
+            "status_code": None,
+            "status_text": "",
+            "headers": {},
         }
 
-        lines = response.split('\r\n')
+        lines = response.split("\r\n")
         if not lines:
             return result
 
         # Parse status line
         status_line = lines[0]
-        parts = status_line.split(' ', 2)
+        parts = status_line.split(" ", 2)
         if len(parts) >= 2:
             try:
-                result['status_code'] = int(parts[1])
-                result['status_text'] = parts[2] if len(parts) > 2 else ''
+                result["status_code"] = int(parts[1])
+                result["status_text"] = parts[2] if len(parts) > 2 else ""
             except ValueError:
                 pass
 
         # Parse headers
         for line in lines[1:]:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                result['headers'][key.strip().lower()] = value.strip()
+            if ":" in line:
+                key, value = line.split(":", 1)
+                result["headers"][key.strip().lower()] = value.strip()
 
         return result
 
@@ -245,5 +234,5 @@ class WebSocketOriginDetector(BaseDetector):
         """
         GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         accept = ws_key + GUID
-        sha1 = hashlib.sha1(accept.encode('utf-8')).digest()
-        return base64.b64encode(sha1).decode('utf-8')
+        sha1 = hashlib.sha1(accept.encode("utf-8")).digest()
+        return base64.b64encode(sha1).decode("utf-8")

@@ -4,7 +4,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from .base import BaseScanner, Finding, ScanResult, Severity
 
@@ -12,14 +12,15 @@ from .base import BaseScanner, Finding, ScanResult, Severity
 @dataclass
 class CVEInfo:
     """Information about a known CVE."""
+
     cve_id: str
     severity: Severity
     title: str
     description: str
-    affected_versions: List[str]  # Version ranges like "< 2026.2.12"
+    affected_versions: list[str]  # Version ranges like "< 2026.2.12"
     fixed_version: Optional[str]
     remediation: str
-    references: List[str]
+    references: list[str]
 
 
 class CVEScanner(BaseScanner):
@@ -35,12 +36,12 @@ class CVEScanner(BaseScanner):
             severity=Severity.CRITICAL,
             title="Remote Code Execution via Malicious Skill",
             description="A vulnerability in the Skills marketplace allows attackers to execute "
-                       "arbitrary code on the host system through specially crafted skill packages. "
-                       "This can lead to complete system compromise.",
+            "arbitrary code on the host system through specially crafted skill packages. "
+            "This can lead to complete system compromise.",
             affected_versions=["< 2026.2.12"],
             fixed_version="2026.2.12",
             remediation="Upgrade to OpenClaw 2026.2.12 or later. Disable third-party skills "
-                       "until upgrade is complete.",
+            "until upgrade is complete.",
             references=[
                 "https://github.com/openclaw/openclaw/security/advisories/GHSA-xxxx-xxxx-xxxx",
                 "https://nvd.nist.gov/vuln/detail/CVE-2026-25253",
@@ -51,12 +52,12 @@ class CVEScanner(BaseScanner):
             severity=Severity.HIGH,
             title="Authentication Bypass in Gateway API",
             description="The Gateway component fails to properly validate authentication tokens "
-                       "under certain conditions, allowing unauthenticated access to protected "
-                       "API endpoints.",
+            "under certain conditions, allowing unauthenticated access to protected "
+            "API endpoints.",
             affected_versions=["< 2026.2.10"],
             fixed_version="2026.2.10",
             remediation="Upgrade to OpenClaw 2026.2.10 or later. As a temporary mitigation, "
-                       "restrict network access to the Gateway API.",
+            "restrict network access to the Gateway API.",
             references=[
                 "https://github.com/openclaw/openclaw/security/advisories/GHSA-yyyy-yyyy-yyyy",
                 "https://nvd.nist.gov/vuln/detail/CVE-2026-25157",
@@ -67,12 +68,12 @@ class CVEScanner(BaseScanner):
             severity=Severity.HIGH,
             title="Privilege Escalation via Prompt Injection",
             description="Attackers can inject malicious instructions through external content "
-                       "(websites, messages) that the agent processes, leading to unauthorized "
-                       "actions with the agent's full privileges.",
+            "(websites, messages) that the agent processes, leading to unauthorized "
+            "actions with the agent's full privileges.",
             affected_versions=["< 2026.2.12"],
             fixed_version="2026.2.12",
             remediation="Upgrade to OpenClaw 2026.2.12 or later. Enable the new 'untrusted content' "
-                       "mode which sanitizes external inputs.",
+            "mode which sanitizes external inputs.",
             references=[
                 "https://github.com/openclaw/openclaw/security/advisories/GHSA-zzzz-zzzz-zzzz",
                 "https://nvd.nist.gov/vuln/detail/CVE-2026-24763",
@@ -83,12 +84,12 @@ class CVEScanner(BaseScanner):
             severity=Severity.MEDIUM,
             title="SSRF via URL Input Processing",
             description="The input_file and input_image URL handlers do not properly validate "
-                       "target URLs, allowing Server-Side Request Forgery attacks to access "
-                       "internal network resources.",
+            "target URLs, allowing Server-Side Request Forgery attacks to access "
+            "internal network resources.",
             affected_versions=["< 2026.2.8"],
             fixed_version="2026.2.8",
             remediation="Upgrade to OpenClaw 2026.2.8 or later. Configure URL allowlists "
-                       "for external resource fetching.",
+            "for external resource fetching.",
             references=[
                 "https://nvd.nist.gov/vuln/detail/CVE-2026-23891",
             ],
@@ -98,7 +99,7 @@ class CVEScanner(BaseScanner):
             severity=Severity.MEDIUM,
             title="Information Disclosure in Error Messages",
             description="Detailed error messages expose internal system paths, configuration "
-                       "details, and stack traces to remote users.",
+            "details, and stack traces to remote users.",
             affected_versions=["< 2026.2.6"],
             fixed_version="2026.2.6",
             remediation="Upgrade to OpenClaw 2026.2.6 or later. Disable debug mode in production.",
@@ -126,8 +127,9 @@ class CVEScanner(BaseScanner):
             version = self._detect_version(target)
 
         if version is None:
-            result.errors.append("Could not detect OpenClaw version. "
-                               "Use --version flag to specify manually.")
+            result.errors.append(
+                "Could not detect OpenClaw version. " "Use --version flag to specify manually."
+            )
             return result
 
         result.scanned_items = 1
@@ -135,15 +137,17 @@ class CVEScanner(BaseScanner):
         # Check each CVE
         for cve in self.KNOWN_CVES:
             if self._is_affected(version, cve.affected_versions):
-                result.findings.append(Finding(
-                    title=cve.title,
-                    severity=cve.severity,
-                    description=cve.description,
-                    cve=cve.cve_id,
-                    remediation=cve.remediation,
-                    references=cve.references,
-                    location=f"OpenClaw version {version}",
-                ))
+                result.findings.append(
+                    Finding(
+                        title=cve.title,
+                        severity=cve.severity,
+                        description=cve.description,
+                        cve=cve.cve_id,
+                        remediation=cve.remediation,
+                        references=cve.references,
+                        location=f"OpenClaw version {version}",
+                    )
+                )
 
         return result
 
@@ -182,7 +186,7 @@ class CVEScanner(BaseScanner):
 
         return None
 
-    def _is_affected(self, version: str, affected_ranges: List[str]) -> bool:
+    def _is_affected(self, version: str, affected_ranges: list[str]) -> bool:
         """Check if a version is affected by the vulnerability."""
         version_tuple = self._parse_version(version)
         if version_tuple is None:
@@ -207,7 +211,7 @@ class CVEScanner(BaseScanner):
 
         return False
 
-    def _parse_version(self, version_str: str) -> Optional[Tuple[int, ...]]:
+    def _parse_version(self, version_str: str) -> Optional[tuple[int, ...]]:
         """Parse version string to comparable tuple."""
         try:
             # Handle versions like "2026.2.12"

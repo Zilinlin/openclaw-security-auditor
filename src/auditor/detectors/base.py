@@ -9,11 +9,12 @@ Reference: docs/DETECTION_TECHNIQUES.md
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 
 class DetectorSeverity(Enum):
     """Severity levels for detector findings."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -23,6 +24,7 @@ class DetectorSeverity(Enum):
 
 class VulnerabilityStatus(Enum):
     """Status of vulnerability detection."""
+
     VULNERABLE = "vulnerable"
     NOT_VULNERABLE = "not_vulnerable"
     UNKNOWN = "unknown"
@@ -43,6 +45,7 @@ class DetectorFinding:
         remediation: Steps to fix the vulnerability
         references: URLs to security research
     """
+
     title: str
     status: VulnerabilityStatus
     severity: Optional[DetectorSeverity] = None
@@ -50,7 +53,7 @@ class DetectorFinding:
     cve: Optional[str] = None
     evidence: Optional[str] = None
     remediation: Optional[str] = None
-    references: List[str] = field(default_factory=list)
+    references: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert finding to dictionary."""
@@ -77,26 +80,23 @@ class DetectorResult:
         errors: Any errors encountered
         metadata: Additional metadata about the scan
     """
+
     detector_name: str
     target: str = ""
-    findings: List[DetectorFinding] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    findings: list[DetectorFinding] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
     @property
     def is_vulnerable(self) -> bool:
         """Check if any finding indicates vulnerability."""
-        return any(
-            f.status == VulnerabilityStatus.VULNERABLE
-            for f in self.findings
-        )
+        return any(f.status == VulnerabilityStatus.VULNERABLE for f in self.findings)
 
     @property
     def has_critical(self) -> bool:
         """Check if any critical vulnerabilities found."""
         return any(
-            f.status == VulnerabilityStatus.VULNERABLE and
-            f.severity == DetectorSeverity.CRITICAL
+            f.status == VulnerabilityStatus.VULNERABLE and f.severity == DetectorSeverity.CRITICAL
             for f in self.findings
         )
 
@@ -128,7 +128,7 @@ class BaseDetector(ABC):
     name: str = "base"
     description: str = "Base detector"
     cve: Optional[str] = None
-    references: List[str] = []
+    references: list[str] = []
 
     # Safety flags
     makes_network_requests: bool = True
@@ -136,12 +136,7 @@ class BaseDetector(ABC):
     requires_auth: bool = False
 
     @abstractmethod
-    def detect(
-        self,
-        host: str,
-        port: int = 18789,
-        **kwargs
-    ) -> DetectorResult:
+    def detect(self, host: str, port: int = 18789, **kwargs) -> DetectorResult:
         """
         Perform vulnerability detection.
 
@@ -170,5 +165,5 @@ class BaseDetector(ABC):
                 "detector_version": "0.1.0",
                 "cve": self.cve,
                 "references": self.references,
-            }
+            },
         )

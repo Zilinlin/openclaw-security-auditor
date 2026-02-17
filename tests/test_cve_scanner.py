@@ -1,13 +1,12 @@
 """Tests for CVE scanner."""
 
+import os
+import sys
 import unittest
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from auditor.scanners.cve_scanner import CVEScanner
-from auditor.scanners.base import Severity
 
 
 class TestCVEScanner(unittest.TestCase):
@@ -60,5 +59,5 @@ class TestCVEScanner(unittest.TestCase):
         self.assertIn("Could not detect", result.errors[0])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

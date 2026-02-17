@@ -12,14 +12,14 @@ References:
 """
 
 from .injection_payloads import (
-    INSTRUCTION_OVERRIDE_PAYLOADS,
-    ROLE_HIJACK_PAYLOADS,
+    ALL_PAYLOADS,
     CONTEXT_MANIPULATION_PAYLOADS,
     ENCODED_INJECTION_PAYLOADS,
+    INSTRUCTION_OVERRIDE_PAYLOADS,
     JAILBREAK_PAYLOADS,
-    ALL_PAYLOADS,
-    get_payloads_by_category,
+    ROLE_HIJACK_PAYLOADS,
     get_payload_categories,
+    get_payloads_by_category,
 )
 
 __all__ = [

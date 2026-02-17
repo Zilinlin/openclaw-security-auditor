@@ -1,15 +1,15 @@
 """Tests for configuration scanner."""
 
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from auditor.scanners.config_scanner import ConfigScanner
 from auditor.scanners.base import Severity
+from auditor.scanners.config_scanner import ConfigScanner
 
 
 class TestConfigScanner(unittest.TestCase):
@@ -25,9 +25,7 @@ class TestConfigScanner(unittest.TestCase):
             result = scanner.scan(tmpdir)
 
             self.assertGreaterEqual(len(result.findings), 1)
-            critical_findings = [
-                f for f in result.findings if f.severity == Severity.CRITICAL
-            ]
+            critical_findings = [f for f in result.findings if f.severity == Severity.CRITICAL]
             self.assertTrue(any("0.0.0.0" in f.title for f in critical_findings))
 
     def test_detect_auth_disabled(self):
@@ -79,8 +77,7 @@ class TestConfigScanner(unittest.TestCase):
             result = scanner.scan(tmpdir)
 
             serious_findings = [
-                f for f in result.findings
-                if f.severity in (Severity.CRITICAL, Severity.HIGH)
+                f for f in result.findings if f.severity in (Severity.CRITICAL, Severity.HIGH)
             ]
             self.assertEqual(len(serious_findings), 0)
 
@@ -205,8 +202,7 @@ class TestConfigScannerYAML(unittest.TestCase):
             result = scanner.scan(tmpdir)
 
             serious = [
-                f for f in result.findings
-                if f.severity in (Severity.CRITICAL, Severity.HIGH)
+                f for f in result.findings if f.severity in (Severity.CRITICAL, Severity.HIGH)
             ]
             self.assertEqual(len(serious), 0)
 
@@ -247,9 +243,9 @@ class TestConfigScannerYAML(unittest.TestCase):
             config_file.write_text("agent:\n  name: [invalid\n  :")
 
             scanner = ConfigScanner()
-            result = scanner.scan(tmpdir)
+            scanner.scan(tmpdir)
             # Should not raise, may or may not have findings from regex
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

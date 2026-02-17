@@ -4,22 +4,19 @@ Tests for file integrity monitoring, canary token detection,
 and anomaly detection — without requiring a running OpenClaw instance.
 """
 
-import json
 import os
 import shutil
+import sys
 import tempfile
 import unittest
-from datetime import datetime, timedelta
-
-import sys
 
 # Add parent directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from skill.monitor.alerts import Alert, AlertManager, AlertSeverity
-from skill.monitor.integrity import FileIntegrityMonitor, IntegrityViolation
-from skill.monitor.canary import CanaryTokenManager
 from skill.monitor.anomaly import AnomalyDetector, RateLimit
+from skill.monitor.canary import CanaryTokenManager
+from skill.monitor.integrity import FileIntegrityMonitor
 
 
 class TestAlertManager(unittest.TestCase):
@@ -43,14 +40,22 @@ class TestAlertManager(unittest.TestCase):
     def test_alert_filtering_by_severity(self):
         """Test filtering alerts by severity."""
         manager = AlertManager()
-        manager.send(Alert(
-            alert_type="test", severity=AlertSeverity.HIGH,
-            title="High", description="high",
-        ))
-        manager.send(Alert(
-            alert_type="test", severity=AlertSeverity.LOW,
-            title="Low", description="low",
-        ))
+        manager.send(
+            Alert(
+                alert_type="test",
+                severity=AlertSeverity.HIGH,
+                title="High",
+                description="high",
+            )
+        )
+        manager.send(
+            Alert(
+                alert_type="test",
+                severity=AlertSeverity.LOW,
+                title="Low",
+                description="low",
+            )
+        )
 
         high_alerts = manager.get_alerts(severity=AlertSeverity.HIGH)
         self.assertEqual(len(high_alerts), 1)
@@ -59,10 +64,14 @@ class TestAlertManager(unittest.TestCase):
     def test_alert_acknowledge(self):
         """Test acknowledging alerts."""
         manager = AlertManager()
-        manager.send(Alert(
-            alert_type="test", severity=AlertSeverity.INFO,
-            title="Test", description="test",
-        ))
+        manager.send(
+            Alert(
+                alert_type="test",
+                severity=AlertSeverity.INFO,
+                title="Test",
+                description="test",
+            )
+        )
 
         self.assertTrue(manager.acknowledge(0))
         self.assertTrue(manager.alerts[0].acknowledged)
@@ -77,8 +86,10 @@ class TestAlertManager(unittest.TestCase):
         manager.register_handler(lambda a: received.append(a))
 
         alert = Alert(
-            alert_type="test", severity=AlertSeverity.MEDIUM,
-            title="Handler Test", description="test",
+            alert_type="test",
+            severity=AlertSeverity.MEDIUM,
+            title="Handler Test",
+            description="test",
         )
         manager.send(alert)
 
@@ -102,18 +113,30 @@ class TestAlertManager(unittest.TestCase):
     def test_get_summary(self):
         """Test alert summary statistics."""
         manager = AlertManager()
-        manager.send(Alert(
-            alert_type="type_a", severity=AlertSeverity.HIGH,
-            title="A", description="a",
-        ))
-        manager.send(Alert(
-            alert_type="type_b", severity=AlertSeverity.HIGH,
-            title="B", description="b",
-        ))
-        manager.send(Alert(
-            alert_type="type_a", severity=AlertSeverity.LOW,
-            title="C", description="c",
-        ))
+        manager.send(
+            Alert(
+                alert_type="type_a",
+                severity=AlertSeverity.HIGH,
+                title="A",
+                description="a",
+            )
+        )
+        manager.send(
+            Alert(
+                alert_type="type_b",
+                severity=AlertSeverity.HIGH,
+                title="B",
+                description="b",
+            )
+        )
+        manager.send(
+            Alert(
+                alert_type="type_a",
+                severity=AlertSeverity.LOW,
+                title="C",
+                description="c",
+            )
+        )
 
         summary = manager.get_summary()
         self.assertEqual(summary["total"], 3)
@@ -137,11 +160,11 @@ class TestFileIntegrityMonitor(unittest.TestCase):
         shutil.rmtree(self.test_dir)
 
     def _write_file(self, name: str, content: str):
-        with open(os.path.join(self.test_dir, name), 'w') as f:
+        with open(os.path.join(self.test_dir, name), "w") as f:
             f.write(content)
 
     def _read_file(self, name: str) -> str:
-        with open(os.path.join(self.test_dir, name), 'r') as f:
+        with open(os.path.join(self.test_dir, name)) as f:
             return f.read()
 
     def test_initialize_creates_checksums(self):
@@ -157,7 +180,7 @@ class TestFileIntegrityMonitor(unittest.TestCase):
         self.assertIn("config.yaml", checksums)
 
         # Verify SHA256 format (64 hex chars)
-        for name, checksum in checksums.items():
+        for _name, checksum in checksums.items():
             self.assertEqual(len(checksum.sha256), 64)
 
     def test_no_violation_when_unchanged(self):
@@ -347,7 +370,7 @@ class TestCanaryTokenManager(unittest.TestCase):
         patterns = ["sk-proj-", "AKIA", "ghp_", "xoxb-"]
         self.assertTrue(
             any(fake.token.startswith(p) for p in patterns),
-            f"Fake secret '{fake.token}' doesn't match any known pattern"
+            f"Fake secret '{fake.token}' doesn't match any known pattern",
         )
 
     def test_inject_canaries(self):
@@ -405,7 +428,7 @@ class TestCanaryTokenManager(unittest.TestCase):
         """Test active vs triggered canary tracking."""
         manager = CanaryTokenManager()
         c1 = manager.create_canary("first")
-        c2 = manager.create_canary("second")
+        manager.create_canary("second")
 
         self.assertEqual(len(manager.get_active_canaries()), 2)
         self.assertEqual(len(manager.get_triggered_canaries()), 0)
@@ -468,7 +491,7 @@ class TestAnomalyDetector(unittest.TestCase):
         )
 
         # Record actions up to the limit
-        for i in range(3):
+        for _i in range(3):
             alert = detector.record_action("test_action")
             self.assertIsNone(alert)
 
@@ -572,13 +595,9 @@ class TestAnomalyDetector(unittest.TestCase):
         detector = AnomalyDetector()
 
         self.assertEqual(
-            detector._extract_domain("https://api.openai.com/v1/chat"),
-            "api.openai.com"
+            detector._extract_domain("https://api.openai.com/v1/chat"), "api.openai.com"
         )
-        self.assertEqual(
-            detector._extract_domain("http://localhost:8080/test"),
-            "localhost"
-        )
+        self.assertEqual(detector._extract_domain("http://localhost:8080/test"), "localhost")
         self.assertIsNone(detector._extract_domain("not-a-url"))
 
     def test_get_status(self):
@@ -605,5 +624,5 @@ class TestAnomalyDetector(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

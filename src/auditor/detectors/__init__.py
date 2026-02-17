@@ -1,10 +1,16 @@
 """Dynamic vulnerability detectors for OpenClaw."""
 
-from .base import BaseDetector, DetectorResult, DetectorFinding, DetectorSeverity, VulnerabilityStatus
-from .websocket_detector import WebSocketOriginDetector
-from .prompt_injection_detector import PromptInjectionDetector
 from .api_bypass_detector import APIHookBypassDetector
 from .auth_detector import AuthWeaknessDetector
+from .base import (
+    BaseDetector,
+    DetectorFinding,
+    DetectorResult,
+    DetectorSeverity,
+    VulnerabilityStatus,
+)
+from .prompt_injection_detector import PromptInjectionDetector
+from .websocket_detector import WebSocketOriginDetector
 
 __all__ = [
     "BaseDetector",

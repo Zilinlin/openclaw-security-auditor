@@ -3,13 +3,13 @@
 These tests verify scanner logic using mock configurations and files.
 """
 
-import tempfile
-import os
-import unittest
 import json
-
+import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from auditor.scanners.base import Severity
 from auditor.scanners.config_scanner import ConfigScanner
@@ -26,12 +26,13 @@ class TestConfigScanner(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_detect_insecure_bind(self):
         """Test detection of insecure network binding."""
         config_file = os.path.join(self.temp_dir, "config.yaml")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             # Use format that matches the scanner's regex pattern
             f.write("bind_address: 0.0.0.0\nport: 18789\n")
 
@@ -39,27 +40,27 @@ class TestConfigScanner(unittest.TestCase):
 
         # Should find insecure binding
         self.assertTrue(len(result.findings) > 0)
-        binding_findings = [f for f in result.findings
-                           if "0.0.0.0" in f.title]
+        binding_findings = [f for f in result.findings if "0.0.0.0" in f.title]
         self.assertTrue(len(binding_findings) > 0)
 
     def test_detect_auth_disabled(self):
         """Test detection of disabled authentication."""
         config_file = os.path.join(self.temp_dir, "config.yaml")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             f.write("auth_enabled: false\nport: 18789\n")
 
         result = self.scanner.scan(self.temp_dir)
 
         # Should find auth issue
-        auth_findings = [f for f in result.findings
-                        if "auth" in f.title.lower() or "Authentication" in f.title]
+        auth_findings = [
+            f for f in result.findings if "auth" in f.title.lower() or "Authentication" in f.title
+        ]
         self.assertTrue(len(auth_findings) > 0)
 
     def test_safe_config(self):
         """Test that safe configuration passes."""
         config_file = os.path.join(self.temp_dir, "config.yaml")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             f.write(
                 "bind_address: 127.0.0.1\n"
                 "auth_enabled: true\n"
@@ -70,8 +71,7 @@ class TestConfigScanner(unittest.TestCase):
         result = self.scanner.scan(self.temp_dir)
 
         # Should have no critical findings
-        critical_findings = [f for f in result.findings
-                            if f.severity == Severity.CRITICAL]
+        critical_findings = [f for f in result.findings if f.severity == Severity.CRITICAL]
         self.assertEqual(len(critical_findings), 0)
 
 
@@ -107,26 +107,26 @@ class TestSecretScanner(unittest.TestCase):
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_detect_api_key(self):
         """Test detection of exposed API keys."""
         config_file = os.path.join(self.temp_dir, "config.py")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             f.write('OPENAI_API_KEY = "sk-aBcDeFgHiJkLmNoPqRsTuVwXyZ123456789012345678"\n')
 
         result = self.scanner.scan(self.temp_dir)
 
         # Should find API key
         self.assertTrue(len(result.findings) > 0)
-        key_findings = [f for f in result.findings
-                       if "key" in f.title.lower() or "Key" in f.title]
+        key_findings = [f for f in result.findings if "key" in f.title.lower() or "Key" in f.title]
         self.assertTrue(len(key_findings) > 0)
 
     def test_detect_password(self):
         """Test detection of hardcoded passwords."""
         config_file = os.path.join(self.temp_dir, ".env")
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             f.write('DATABASE_PASSWORD="super_secret_password"\n')
             f.write('API_SECRET="another_secret_value"\n')
 
@@ -138,17 +138,15 @@ class TestSecretScanner(unittest.TestCase):
     def test_no_secrets(self):
         """Test that file without secrets passes."""
         config_file = os.path.join(self.temp_dir, "config.json")
-        with open(config_file, 'w') as f:
-            json.dump({
-                "setting": "value",
-                "number": 42
-            }, f)
+        with open(config_file, "w") as f:
+            json.dump({"setting": "value", "number": 42}, f)
 
         result = self.scanner.scan(self.temp_dir)
 
         # Should have no secret findings
-        secret_findings = [f for f in result.findings
-                         if f.severity in [Severity.CRITICAL, Severity.HIGH]]
+        secret_findings = [
+            f for f in result.findings if f.severity in [Severity.CRITICAL, Severity.HIGH]
+        ]
         self.assertEqual(len(secret_findings), 0)
 
 
@@ -164,5 +162,5 @@ class TestSeverity(unittest.TestCase):
         self.assertEqual(Severity.INFO.value, "info")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

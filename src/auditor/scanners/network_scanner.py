@@ -18,11 +18,7 @@ class NetworkScanner(BaseScanner):
     TIMEOUT = 5
 
     def scan(
-        self,
-        target: str,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        **kwargs
+        self, target: str, host: Optional[str] = None, port: Optional[int] = None, **kwargs
     ) -> ScanResult:
         """
         Check network exposure of an OpenClaw instance.
@@ -54,28 +50,32 @@ class NetworkScanner(BaseScanner):
         if port_open:
             # Check if it's actually OpenClaw
             if self._is_openclaw(banner):
-                result.findings.append(Finding(
-                    title="OpenClaw instance accessible",
-                    severity=Severity.INFO,
-                    description=f"OpenClaw instance found at {check_host}:{check_port}",
-                    location=f"{check_host}:{check_port}",
-                ))
+                result.findings.append(
+                    Finding(
+                        title="OpenClaw instance accessible",
+                        severity=Severity.INFO,
+                        description=f"OpenClaw instance found at {check_host}:{check_port}",
+                        location=f"{check_host}:{check_port}",
+                    )
+                )
 
                 # Check for public exposure
                 if self._is_public_ip(check_host):
-                    result.findings.append(Finding(
-                        title="OpenClaw exposed to public internet",
-                        severity=Severity.CRITICAL,
-                        description=f"The OpenClaw instance at {check_host}:{check_port} is "
-                                   "accessible from the public internet. This exposes the "
-                                   "instance to remote attacks.",
-                        location=f"{check_host}:{check_port}",
-                        remediation="Bind to 127.0.0.1 for local-only access, or use a firewall "
-                                   "to restrict access to trusted IP addresses.",
-                        references=[
-                            "https://github.com/openclaw/openclaw/blob/main/docs/security.md",
-                        ],
-                    ))
+                    result.findings.append(
+                        Finding(
+                            title="OpenClaw exposed to public internet",
+                            severity=Severity.CRITICAL,
+                            description=f"The OpenClaw instance at {check_host}:{check_port} is "
+                            "accessible from the public internet. This exposes the "
+                            "instance to remote attacks.",
+                            location=f"{check_host}:{check_port}",
+                            remediation="Bind to 127.0.0.1 for local-only access, or use a firewall "
+                            "to restrict access to trusted IP addresses.",
+                            references=[
+                                "https://github.com/openclaw/openclaw/blob/main/docs/security.md",
+                            ],
+                        )
+                    )
 
                 # Check SSL/TLS
                 ssl_findings = self._check_ssl(check_host, check_port)
@@ -85,21 +85,25 @@ class NetworkScanner(BaseScanner):
                 auth_findings = self._check_auth(check_host, check_port)
                 result.findings.extend(auth_findings)
             else:
-                result.findings.append(Finding(
-                    title="Port open but not OpenClaw",
-                    severity=Severity.INFO,
-                    description=f"Port {check_port} is open at {check_host} but does not "
-                               "appear to be an OpenClaw instance.",
-                    location=f"{check_host}:{check_port}",
-                ))
+                result.findings.append(
+                    Finding(
+                        title="Port open but not OpenClaw",
+                        severity=Severity.INFO,
+                        description=f"Port {check_port} is open at {check_host} but does not "
+                        "appear to be an OpenClaw instance.",
+                        location=f"{check_host}:{check_port}",
+                    )
+                )
         else:
-            result.findings.append(Finding(
-                title="OpenClaw port not accessible",
-                severity=Severity.INFO,
-                description=f"Could not connect to {check_host}:{check_port}. "
-                           "The instance may be properly firewalled or not running.",
-                location=f"{check_host}:{check_port}",
-            ))
+            result.findings.append(
+                Finding(
+                    title="OpenClaw port not accessible",
+                    severity=Severity.INFO,
+                    description=f"Could not connect to {check_host}:{check_port}. "
+                    "The instance may be properly firewalled or not running.",
+                    location=f"{check_host}:{check_port}",
+                )
+            )
 
         return result
 
@@ -154,10 +158,22 @@ class NetworkScanner(BaseScanner):
                 "127.",
                 "10.",
                 "192.168.",
-                "172.16.", "172.17.", "172.18.", "172.19.",
-                "172.20.", "172.21.", "172.22.", "172.23.",
-                "172.24.", "172.25.", "172.26.", "172.27.",
-                "172.28.", "172.29.", "172.30.", "172.31.",
+                "172.16.",
+                "172.17.",
+                "172.18.",
+                "172.19.",
+                "172.20.",
+                "172.21.",
+                "172.22.",
+                "172.23.",
+                "172.24.",
+                "172.25.",
+                "172.26.",
+                "172.27.",
+                "172.28.",
+                "172.29.",
+                "172.30.",
+                "172.31.",
                 "169.254.",
                 "::1",
                 "fe80:",
@@ -179,31 +195,37 @@ class NetworkScanner(BaseScanner):
             context = ssl.create_default_context()
             with socket.create_connection((host, port), timeout=self.TIMEOUT) as sock:
                 with context.wrap_socket(sock, server_hostname=host) as ssock:
-                    cert = ssock.getpeercert()
+                    ssock.getpeercert()
                     # SSL is working
-                    findings.append(Finding(
-                        title="SSL/TLS enabled",
-                        severity=Severity.INFO,
-                        description="The connection is secured with SSL/TLS.",
-                        location=f"{host}:{port}",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="SSL/TLS enabled",
+                            severity=Severity.INFO,
+                            description="The connection is secured with SSL/TLS.",
+                            location=f"{host}:{port}",
+                        )
+                    )
         except ssl.SSLError as e:
             if "certificate" in str(e).lower():
-                findings.append(Finding(
-                    title="SSL certificate issue",
-                    severity=Severity.MEDIUM,
-                    description=f"SSL certificate validation failed: {e}",
-                    location=f"{host}:{port}",
-                    remediation="Install a valid SSL certificate from a trusted CA.",
-                ))
+                findings.append(
+                    Finding(
+                        title="SSL certificate issue",
+                        severity=Severity.MEDIUM,
+                        description=f"SSL certificate validation failed: {e}",
+                        location=f"{host}:{port}",
+                        remediation="Install a valid SSL certificate from a trusted CA.",
+                    )
+                )
         except Exception:
-            findings.append(Finding(
-                title="No SSL/TLS encryption",
-                severity=Severity.HIGH,
-                description="The connection is not encrypted with SSL/TLS.",
-                location=f"{host}:{port}",
-                remediation="Enable SSL/TLS to encrypt communications.",
-            ))
+            findings.append(
+                Finding(
+                    title="No SSL/TLS encryption",
+                    severity=Severity.HIGH,
+                    description="The connection is not encrypted with SSL/TLS.",
+                    location=f"{host}:{port}",
+                    remediation="Enable SSL/TLS to encrypt communications.",
+                )
+            )
 
         return findings
 
@@ -218,10 +240,7 @@ class NetworkScanner(BaseScanner):
 
             # Try to access API without auth
             request = (
-                "GET /api/v1/status HTTP/1.1\r\n"
-                f"Host: {host}\r\n"
-                "Connection: close\r\n"
-                "\r\n"
+                "GET /api/v1/status HTTP/1.1\r\n" f"Host: {host}\r\n" "Connection: close\r\n" "\r\n"
             )
             sock.send(request.encode())
             response = sock.recv(4096).decode("utf-8", errors="ignore")
@@ -230,21 +249,25 @@ class NetworkScanner(BaseScanner):
             if "200 OK" in response or "200 ok" in response.lower():
                 # Check if response contains sensitive data
                 if any(word in response.lower() for word in ["version", "config", "status"]):
-                    findings.append(Finding(
-                        title="API accessible without authentication",
-                        severity=Severity.HIGH,
-                        description="The OpenClaw API is accessible without authentication. "
-                                   "This may allow unauthorized access to sensitive functions.",
-                        location=f"{host}:{port}/api/v1/status",
-                        remediation="Enable authentication for all API endpoints.",
-                    ))
+                    findings.append(
+                        Finding(
+                            title="API accessible without authentication",
+                            severity=Severity.HIGH,
+                            description="The OpenClaw API is accessible without authentication. "
+                            "This may allow unauthorized access to sensitive functions.",
+                            location=f"{host}:{port}/api/v1/status",
+                            remediation="Enable authentication for all API endpoints.",
+                        )
+                    )
             elif "401" in response or "403" in response:
-                findings.append(Finding(
-                    title="Authentication required",
-                    severity=Severity.INFO,
-                    description="The API properly requires authentication.",
-                    location=f"{host}:{port}",
-                ))
+                findings.append(
+                    Finding(
+                        title="Authentication required",
+                        severity=Severity.INFO,
+                        description="The API properly requires authentication.",
+                        location=f"{host}:{port}",
+                    )
+                )
         except Exception:
             pass
 

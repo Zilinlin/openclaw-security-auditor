@@ -16,7 +16,7 @@ Reference:
 
 import json
 import secrets
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import requests
 
@@ -100,11 +100,7 @@ class APIHookBypassDetector(BaseDetector):
     TIMEOUT = 10
 
     def detect(
-        self,
-        host: str,
-        port: int = 18789,
-        auth_token: Optional[str] = None,
-        **kwargs
+        self, host: str, port: int = 18789, auth_token: Optional[str] = None, **kwargs
     ) -> DetectorResult:
         """
         Test if API endpoints have security hook coverage.
@@ -125,35 +121,35 @@ class APIHookBypassDetector(BaseDetector):
 
         for endpoint in self.ENDPOINTS:
             try:
-                has_hooks, hook_info = self._test_endpoint(
-                    base_url, endpoint, auth_token
-                )
+                has_hooks, hook_info = self._test_endpoint(base_url, endpoint, auth_token)
 
                 if has_hooks:
                     endpoints_with_hooks.append(endpoint["path"])
                 else:
                     endpoints_without_hooks.append(endpoint["path"])
-                    result.findings.append(DetectorFinding(
-                        title=f"API Hook Bypass: {endpoint['path']}",
-                        status=VulnerabilityStatus.VULNERABLE,
-                        severity=DetectorSeverity.HIGH,
-                        description=(
-                            f"The endpoint {endpoint['path']} ({endpoint['description']}) "
-                            f"appears to bypass security plugin hooks. "
-                            f"Expected hooks: {', '.join(endpoint['expected_hooks'])}. "
-                            f"Direct API consumers may have no protection against "
-                            f"prompt injection and data exfiltration."
-                        ),
-                        evidence=hook_info,
-                        remediation=(
-                            "Implement the proposed security hooks from RFC #6098: "
-                            "http_request_received, http_response_sending, "
-                            "http_tool_invoke, http_tool_result. "
-                            "Ensure all HTTP endpoints have the same hook coverage "
-                            "as messaging platform integrations."
-                        ),
-                        references=self.references,
-                    ))
+                    result.findings.append(
+                        DetectorFinding(
+                            title=f"API Hook Bypass: {endpoint['path']}",
+                            status=VulnerabilityStatus.VULNERABLE,
+                            severity=DetectorSeverity.HIGH,
+                            description=(
+                                f"The endpoint {endpoint['path']} ({endpoint['description']}) "
+                                f"appears to bypass security plugin hooks. "
+                                f"Expected hooks: {', '.join(endpoint['expected_hooks'])}. "
+                                f"Direct API consumers may have no protection against "
+                                f"prompt injection and data exfiltration."
+                            ),
+                            evidence=hook_info,
+                            remediation=(
+                                "Implement the proposed security hooks from RFC #6098: "
+                                "http_request_received, http_response_sending, "
+                                "http_tool_invoke, http_tool_result. "
+                                "Ensure all HTTP endpoints have the same hook coverage "
+                                "as messaging platform integrations."
+                            ),
+                            references=self.references,
+                        )
+                    )
 
             except requests.exceptions.ConnectionError:
                 result.errors.append(f"Connection failed to {base_url}")
@@ -170,24 +166,23 @@ class APIHookBypassDetector(BaseDetector):
 
         # Add positive finding if all endpoints have hooks
         if not endpoints_without_hooks and endpoints_with_hooks:
-            result.findings.append(DetectorFinding(
-                title="API Security Hooks Present",
-                status=VulnerabilityStatus.NOT_VULNERABLE,
-                description=(
-                    f"All {len(endpoints_with_hooks)} tested API endpoints "
-                    f"appear to have security hook coverage."
-                ),
-                references=self.references,
-            ))
+            result.findings.append(
+                DetectorFinding(
+                    title="API Security Hooks Present",
+                    status=VulnerabilityStatus.NOT_VULNERABLE,
+                    description=(
+                        f"All {len(endpoints_with_hooks)} tested API endpoints "
+                        f"appear to have security hook coverage."
+                    ),
+                    references=self.references,
+                )
+            )
 
         return result
 
     def _test_endpoint(
-        self,
-        base_url: str,
-        endpoint: Dict,
-        auth_token: Optional[str]
-    ) -> Tuple[bool, str]:
+        self, base_url: str, endpoint: dict, auth_token: Optional[str]
+    ) -> tuple[bool, str]:
         """
         Test a single endpoint for hook coverage.
 
@@ -207,6 +202,7 @@ class APIHookBypassDetector(BaseDetector):
         test_marker = secrets.token_hex(6)
 
         # Build test request based on endpoint
+        data: dict
         if endpoint["path"] == "/tools/invoke":
             # Tool invocation format
             data = {
@@ -281,11 +277,8 @@ class APIHookBypassDetector(BaseDetector):
         return has_hooks, evidence
 
     def test_hook_consistency(
-        self,
-        host: str,
-        port: int = 18789,
-        auth_token: Optional[str] = None
-    ) -> Dict:
+        self, host: str, port: int = 18789, auth_token: Optional[str] = None
+    ) -> dict:
         """
         Advanced test: Compare API behavior with messaging platform behavior.
 

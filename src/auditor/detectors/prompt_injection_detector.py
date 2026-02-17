@@ -16,10 +16,9 @@ Reference:
 """
 
 import json
-import re
 import secrets
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Optional
 
 import requests
 
@@ -45,6 +44,7 @@ class InjectionPayload:
         description: What this payload tests
         reference: Source of this technique
     """
+
     name: str
     category: str
     payload: str
@@ -88,7 +88,7 @@ class PromptInjectionDetector(BaseDetector):
         """Initialize detector with payload library."""
         self.payloads = self._build_payload_library()
 
-    def _build_payload_library(self) -> List[InjectionPayload]:
+    def _build_payload_library(self) -> list[InjectionPayload]:
         """Build library of safe test payloads.
 
         All payloads are designed to:
@@ -110,7 +110,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Direct instruction override - agent follows new instructions",
                 reference="OWASP LLM01:2025 Prompt Injection",
             ),
-
             # Category: Role Hijacking
             # Reference: https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/
             InjectionPayload(
@@ -122,7 +121,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Role hijacking - agent accepts new system role",
                 reference="Snyk ToxicSkills Research",
             ),
-
             # Category: Context Manipulation
             # Reference: https://www.penligent.ai/hackinglabs/the-openclaw-prompt-injection-problem-persistence-tool-hijack-and-the-security-boundary-that-doesnt-exist/
             InjectionPayload(
@@ -134,7 +132,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Context escape - agent processes injected XML/tags",
                 reference="Penligent Prompt Injection Research",
             ),
-
             # Category: Delimiter Confusion
             InjectionPayload(
                 name="delimiter_escape",
@@ -145,7 +142,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Delimiter confusion - agent confused by fake conversation",
                 reference="OWASP LLM01:2025 Prompt Injection",
             ),
-
             # Category: Encoded Injection
             # Reference: https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/
             InjectionPayload(
@@ -157,7 +153,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Encoded instruction - agent decodes and follows hidden instruction",
                 reference="Snyk ToxicSkills - Obfuscation Techniques",
             ),
-
             # Category: Indirect Injection (simulated)
             # Reference: https://www.penligent.ai/hackinglabs/the-openclaw-prompt-injection-problem-persistence-tool-hijack-and-the-security-boundary-that-doesnt-exist/
             InjectionPayload(
@@ -169,7 +164,6 @@ class PromptInjectionDetector(BaseDetector):
                 description="Tool access probe - check if agent reveals tool capabilities",
                 reference="Penligent - Tool Hijack Research",
             ),
-
             # Category: Jailbreak Attempt
             InjectionPayload(
                 name="hypothetical_bypass",
@@ -188,8 +182,8 @@ class PromptInjectionDetector(BaseDetector):
         port: int = 18789,
         endpoint: str = "/v1/chat/completions",
         auth_token: Optional[str] = None,
-        payloads: Optional[List[str]] = None,
-        **kwargs
+        payloads: Optional[list[str]] = None,
+        **kwargs,
     ) -> DetectorResult:
         """
         Test agent for prompt injection vulnerabilities.
@@ -223,25 +217,27 @@ class PromptInjectionDetector(BaseDetector):
 
                 if is_vulnerable:
                     successful_injections.append(payload)
-                    result.findings.append(DetectorFinding(
-                        title=f"Prompt Injection: {payload.category}",
-                        status=VulnerabilityStatus.VULNERABLE,
-                        severity=payload.severity,
-                        cve=self.cve if payload.severity == DetectorSeverity.HIGH else None,
-                        description=(
-                            f"{payload.description}. "
-                            f"The agent executed the injected instruction and "
-                            f"returned the canary string."
-                        ),
-                        evidence=f"Payload '{payload.name}' successful. Canary detected in response.",
-                        remediation=(
-                            "Implement input sanitization, instruction-data separation, "
-                            "and content provenance tagging. Consider using guardrails "
-                            "that filter known injection patterns. "
-                            "Reference: https://github.com/openclaw/openclaw/issues/4840"
-                        ),
-                        references=[payload.reference] + self.references,
-                    ))
+                    result.findings.append(
+                        DetectorFinding(
+                            title=f"Prompt Injection: {payload.category}",
+                            status=VulnerabilityStatus.VULNERABLE,
+                            severity=payload.severity,
+                            cve=self.cve if payload.severity == DetectorSeverity.HIGH else None,
+                            description=(
+                                f"{payload.description}. "
+                                f"The agent executed the injected instruction and "
+                                f"returned the canary string."
+                            ),
+                            evidence=f"Payload '{payload.name}' successful. Canary detected in response.",
+                            remediation=(
+                                "Implement input sanitization, instruction-data separation, "
+                                "and content provenance tagging. Consider using guardrails "
+                                "that filter known injection patterns. "
+                                "Reference: https://github.com/openclaw/openclaw/issues/4840"
+                            ),
+                            references=[payload.reference] + self.references,
+                        )
+                    )
                 else:
                     failed_injections.append(payload)
 
@@ -259,25 +255,23 @@ class PromptInjectionDetector(BaseDetector):
             result.metadata["total_tested"] = len(test_payloads)
             result.metadata["vulnerable_count"] = len(successful_injections)
         elif not result.errors:
-            result.findings.append(DetectorFinding(
-                title="Prompt Injection Resilience",
-                status=VulnerabilityStatus.NOT_VULNERABLE,
-                description=(
-                    f"Tested {len(test_payloads)} injection payloads. "
-                    f"The agent did not follow any injected instructions."
-                ),
-                references=self.references,
-            ))
+            result.findings.append(
+                DetectorFinding(
+                    title="Prompt Injection Resilience",
+                    status=VulnerabilityStatus.NOT_VULNERABLE,
+                    description=(
+                        f"Tested {len(test_payloads)} injection payloads. "
+                        f"The agent did not follow any injected instructions."
+                    ),
+                    references=self.references,
+                )
+            )
 
         return result
 
     def _test_payload(
-        self,
-        base_url: str,
-        endpoint: str,
-        payload: InjectionPayload,
-        auth_token: Optional[str]
-    ) -> Tuple[bool, str]:
+        self, base_url: str, endpoint: str, payload: InjectionPayload, auth_token: Optional[str]
+    ) -> tuple[bool, str]:
         """
         Test a single payload against the target.
 
@@ -295,9 +289,7 @@ class PromptInjectionDetector(BaseDetector):
 
         # OpenAI-compatible chat completion format
         data = {
-            "messages": [
-                {"role": "user", "content": test_message}
-            ],
+            "messages": [{"role": "user", "content": test_message}],
             "max_tokens": 100,
         }
 
@@ -335,10 +327,10 @@ class PromptInjectionDetector(BaseDetector):
 
         return is_vulnerable, response_text
 
-    def get_payload_categories(self) -> List[str]:
+    def get_payload_categories(self) -> list[str]:
         """Get list of payload categories."""
-        return list(set(p.category for p in self.payloads))
+        return list({p.category for p in self.payloads})
 
-    def get_payloads_by_category(self, category: str) -> List[InjectionPayload]:
+    def get_payloads_by_category(self, category: str) -> list[InjectionPayload]:
         """Get payloads for a specific category."""
         return [p for p in self.payloads if p.category == category]

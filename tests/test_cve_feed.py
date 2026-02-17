@@ -4,16 +4,16 @@ These tests verify the CVEFeedManager including built-in CVEs,
 feed fetching, version checking, and alert generation.
 """
 
+import os
+import sys
 import unittest
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'skill'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "skill"))
 
-from monitor.cve_feed import CVEFeedManager, CVEAdvisory, FeedStatus
 from monitor.alerts import AlertManager, AlertSeverity
+from monitor.cve_feed import CVEAdvisory, CVEFeedManager
 
 
 class TestCVEFeedManagerInit(unittest.TestCase):
@@ -268,8 +268,9 @@ class TestCVEFeedManagerFeedFetching(unittest.TestCase):
             result = manager._fetch_feed("https://example.com/feed.json")
 
         self.assertIsNone(result)
-        self.assertIn("Connection refused",
-                      manager.feed_statuses["https://example.com/feed.json"].last_error)
+        self.assertIn(
+            "Connection refused", manager.feed_statuses["https://example.com/feed.json"].last_error
+        )
 
     def test_fetch_feed_bad_json(self):
         """Test feed fetch with invalid JSON response."""
@@ -522,5 +523,5 @@ class TestCVEFeedManagerIntegration(unittest.TestCase):
         self.assertEqual(manager.advisories["CVE-2026-25253"].title, "Updated title from feed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

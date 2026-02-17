@@ -1,9 +1,7 @@
 """Configuration scanner for OpenClaw deployments."""
 
-import os
 import re
 from pathlib import Path
-from typing import List, Optional
 
 import yaml
 
@@ -23,9 +21,9 @@ class ConfigScanner(BaseScanner):
             "title": "Binding to all interfaces (0.0.0.0)",
             "severity": Severity.CRITICAL,
             "description": "OpenClaw is configured to listen on all network interfaces, "
-                          "exposing it to the public internet.",
+            "exposing it to the public internet.",
             "remediation": "Change bind address to 127.0.0.1 for local-only access, "
-                          "or use a specific internal IP address.",
+            "or use a specific internal IP address.",
             "cve": None,
         },
         {
@@ -93,9 +91,9 @@ class ConfigScanner(BaseScanner):
             "title": "No authentication configured",
             "severity": Severity.CRITICAL,
             "description": "The OpenClaw configuration has no 'auth' or 'security' section. "
-                          "The gateway API will be accessible without authentication (CVE-2026-25157).",
+            "The gateway API will be accessible without authentication (CVE-2026-25157).",
             "remediation": "Add an auth section with API key or JWT authentication. "
-                          "See https://docs.openclaw.ai/gateway/security",
+            "See https://docs.openclaw.ai/gateway/security",
             "cve": "CVE-2026-25157",
         },
         {
@@ -103,10 +101,10 @@ class ConfigScanner(BaseScanner):
             "title": "System prompt exposed in config file",
             "severity": Severity.MEDIUM,
             "description": "The agent system prompt is stored directly in the config file. "
-                          "If this file is accessible or committed to version control, "
-                          "the prompt can be extracted and used for prompt injection attacks.",
+            "If this file is accessible or committed to version control, "
+            "the prompt can be extracted and used for prompt injection attacks.",
             "remediation": "Store the system prompt in a separate file (e.g., SOUL.md) "
-                          "and reference it from config, or use environment variables.",
+            "and reference it from config, or use environment variables.",
             "cve": None,
         },
         {
@@ -114,9 +112,9 @@ class ConfigScanner(BaseScanner):
             "title": "Slack tokens stored in plaintext config",
             "severity": Severity.HIGH,
             "description": "Slack appToken and/or botToken are stored directly in the config file. "
-                          "These tokens grant access to the Slack workspace and should be secured.",
+            "These tokens grant access to the Slack workspace and should be secured.",
             "remediation": "Move Slack tokens to environment variables or a secrets manager. "
-                          "Use SLACK_APP_TOKEN and SLACK_BOT_TOKEN env vars instead.",
+            "Use SLACK_APP_TOKEN and SLACK_BOT_TOKEN env vars instead.",
             "cve": None,
         },
         {
@@ -124,10 +122,10 @@ class ConfigScanner(BaseScanner):
             "title": "No WebSocket origin validation configured",
             "severity": Severity.HIGH,
             "description": "No 'cors' or 'allowedOrigins' is configured for the gateway. "
-                          "The WebSocket server may accept connections from any origin, "
-                          "enabling Cross-Site WebSocket Hijacking (CVE-2026-25253).",
+            "The WebSocket server may accept connections from any origin, "
+            "enabling Cross-Site WebSocket Hijacking (CVE-2026-25253).",
             "remediation": "Configure allowedOrigins in the gateway section to restrict "
-                          "WebSocket connections to trusted domains.",
+            "WebSocket connections to trusted domains.",
             "cve": "CVE-2026-25253",
         },
         {
@@ -186,7 +184,7 @@ class ConfigScanner(BaseScanner):
 
         return result
 
-    def _find_config_files(self, target_path: Path) -> List[Path]:
+    def _find_config_files(self, target_path: Path) -> list[Path]:
         """Find all configuration files in the target directory."""
         found_files = []
 
@@ -207,26 +205,28 @@ class ConfigScanner(BaseScanner):
 
         return found_files
 
-    def _scan_file(self, file_path: Path) -> List[Finding]:
+    def _scan_file(self, file_path: Path) -> list[Finding]:
         """Scan a single configuration file for issues."""
-        findings = []
+        findings: list[Finding] = []
 
         try:
             content = file_path.read_text()
-        except Exception as e:
+        except Exception:
             return findings
 
         # Regex-based pattern matching (flat key=value configs, .env, etc.)
         for pattern_info in self.DANGEROUS_PATTERNS:
-            if re.search(pattern_info["pattern"], content, re.IGNORECASE | re.MULTILINE):
-                findings.append(Finding(
-                    title=pattern_info["title"],
-                    severity=pattern_info["severity"],
-                    description=pattern_info["description"],
-                    location=str(file_path),
-                    cve=pattern_info["cve"],
-                    remediation=pattern_info["remediation"],
-                ))
+            if re.search(str(pattern_info["pattern"]), content, re.IGNORECASE | re.MULTILINE):
+                findings.append(
+                    Finding(
+                        title=str(pattern_info["title"]),
+                        severity=pattern_info["severity"],  # type: ignore[arg-type]
+                        description=str(pattern_info["description"]),
+                        location=str(file_path),
+                        cve=str(pattern_info["cve"]) if pattern_info["cve"] else None,
+                        remediation=str(pattern_info["remediation"]),
+                    )
+                )
 
         # YAML-aware structural checks for OpenClaw configs
         if file_path.suffix in (".yaml", ".yml"):
@@ -235,9 +235,9 @@ class ConfigScanner(BaseScanner):
 
         return findings
 
-    def _scan_yaml_structure(self, file_path: Path, content: str) -> List[Finding]:
+    def _scan_yaml_structure(self, file_path: Path, content: str) -> list[Finding]:
         """Scan parsed YAML for OpenClaw-specific structural issues."""
-        findings = []
+        findings: list[Finding] = []
 
         try:
             config = yaml.safe_load(content)
@@ -267,14 +267,16 @@ class ConfigScanner(BaseScanner):
                 is_issue = self._check_default_port(config)
 
             if is_issue:
-                findings.append(Finding(
-                    title=check_info["title"],
-                    severity=check_info["severity"],
-                    description=check_info["description"],
-                    location=str(file_path),
-                    cve=check_info.get("cve"),
-                    remediation=check_info["remediation"],
-                ))
+                findings.append(
+                    Finding(
+                        title=str(check_info["title"]),
+                        severity=check_info["severity"],  # type: ignore[arg-type]
+                        description=str(check_info["description"]),
+                        location=str(file_path),
+                        cve=str(check_info["cve"]) if check_info.get("cve") else None,
+                        remediation=str(check_info["remediation"]),
+                    )
+                )
 
         return findings
 
@@ -323,8 +325,7 @@ class ConfigScanner(BaseScanner):
             return True
         # Look for origin/cors configuration
         has_cors = any(
-            key in gateway
-            for key in ("cors", "allowedOrigins", "allowed_origins", "origin")
+            key in gateway for key in ("cors", "allowedOrigins", "allowed_origins", "origin")
         )
         return not has_cors
 
@@ -337,7 +338,7 @@ class ConfigScanner(BaseScanner):
                 return True
         return False
 
-    def _check_missing_security(self, target_path: Path) -> List[Finding]:
+    def _check_missing_security(self, target_path: Path) -> list[Finding]:
         """Check for missing security configurations."""
         findings = []
 
@@ -346,12 +347,14 @@ class ConfigScanner(BaseScanner):
         env_example_path = target_path / ".env.example"
 
         if env_example_path.exists() and not env_path.exists():
-            findings.append(Finding(
-                title="Missing .env configuration",
-                severity=Severity.INFO,
-                description="A .env.example file exists but no .env file was found.",
-                location=str(target_path),
-                remediation="Copy .env.example to .env and configure your secrets.",
-            ))
+            findings.append(
+                Finding(
+                    title="Missing .env configuration",
+                    severity=Severity.INFO,
+                    description="A .env.example file exists but no .env file was found.",
+                    location=str(target_path),
+                    remediation="Copy .env.example to .env and configure your secrets.",
+                )
+            )
 
         return findings

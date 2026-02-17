@@ -1,15 +1,15 @@
 """Tests for secret scanner."""
 
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from auditor.scanners.secret_scanner import SecretScanner
 from auditor.scanners.base import Severity
+from auditor.scanners.secret_scanner import SecretScanner
 
 
 class TestSecretScanner(unittest.TestCase):
@@ -101,17 +101,13 @@ class TestSecretScanner(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             clean_file = Path(tmpdir) / "app.py"
             clean_file.write_text(
-                "import os\n"
-                "API_KEY = os.environ.get('API_KEY')\n"
-                "print('Hello World')\n"
+                "import os\n" "API_KEY = os.environ.get('API_KEY')\n" "print('Hello World')\n"
             )
 
             scanner = SecretScanner()
             result = scanner.scan(tmpdir)
 
-            critical_findings = [
-                f for f in result.findings if f.severity == Severity.CRITICAL
-            ]
+            critical_findings = [f for f in result.findings if f.severity == Severity.CRITICAL]
             self.assertEqual(len(critical_findings), 0)
 
 
@@ -173,9 +169,7 @@ class TestSecretScannerSlackTokens(unittest.TestCase):
             scanner = SecretScanner()
             result = scanner.scan(tmpdir)
 
-            slack_findings = [
-                f for f in result.findings if "Slack" in f.title
-            ]
+            slack_findings = [f for f in result.findings if "Slack" in f.title]
             self.assertGreaterEqual(len(slack_findings), 1)
             for f in slack_findings:
                 self.assertEqual(f.severity, Severity.CRITICAL)
@@ -197,5 +191,5 @@ class TestSecretScannerSlackTokens(unittest.TestCase):
                     self.assertNotIn("FakeTokenValue1234", f.description)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

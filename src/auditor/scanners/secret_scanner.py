@@ -3,7 +3,6 @@
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Set
 
 from .base import BaseScanner, Finding, ScanResult, Severity
 
@@ -15,7 +14,7 @@ class SecretScanner(BaseScanner):
     description = "Scan for exposed API keys, credentials, and sensitive data"
 
     # Patterns for detecting secrets
-    SECRET_PATTERNS: Dict[str, dict] = {
+    SECRET_PATTERNS: dict[str, dict] = {
         "openai_api_key": {
             "pattern": r"sk-[a-zA-Z0-9]{48}",
             "title": "OpenAI API Key Exposed",
@@ -75,21 +74,21 @@ class SecretScanner(BaseScanner):
             "title": "Slack App-Level Token Exposed",
             "severity": Severity.CRITICAL,
             "description": "A Slack app-level token (xapp-*) was found. "
-                          "This token grants access to the Slack Events API and Socket Mode.",
+            "This token grants access to the Slack Events API and Socket Mode.",
         },
         "slack_bot_token": {
             "pattern": r"xoxb-[0-9]+-[0-9]+-[A-Za-z0-9]+",
             "title": "Slack Bot Token Exposed",
             "severity": Severity.CRITICAL,
             "description": "A Slack bot token (xoxb-*) was found. "
-                          "This token grants bot-level access to the Slack workspace.",
+            "This token grants bot-level access to the Slack workspace.",
         },
         "slack_user_token": {
             "pattern": r"xoxp-[0-9]+-[0-9]+-[0-9]+-[a-f0-9]+",
             "title": "Slack User Token Exposed",
             "severity": Severity.CRITICAL,
             "description": "A Slack user token (xoxp-*) was found. "
-                          "This token grants user-level access to the Slack workspace.",
+            "This token grants user-level access to the Slack workspace.",
         },
         "slack_webhook": {
             "pattern": r"https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+",
@@ -118,7 +117,7 @@ class SecretScanner(BaseScanner):
     }
 
     # Files to skip
-    SKIP_PATTERNS: Set[str] = {
+    SKIP_PATTERNS: set[str] = {
         ".git",
         "node_modules",
         "__pycache__",
@@ -132,12 +131,25 @@ class SecretScanner(BaseScanner):
     }
 
     # File extensions to scan
-    SCAN_EXTENSIONS: Set[str] = {
-        ".py", ".js", ".ts", ".jsx", ".tsx",
-        ".yaml", ".yml", ".json", ".toml",
-        ".env", ".conf", ".cfg", ".ini",
-        ".sh", ".bash", ".zsh",
-        ".xml", ".properties",
+    SCAN_EXTENSIONS: set[str] = {
+        ".py",
+        ".js",
+        ".ts",
+        ".jsx",
+        ".tsx",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".toml",
+        ".env",
+        ".conf",
+        ".cfg",
+        ".ini",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".xml",
+        ".properties",
     }
 
     def scan(self, target: str, **kwargs) -> ScanResult:
@@ -167,14 +179,13 @@ class SecretScanner(BaseScanner):
 
         return result
 
-    def _find_files(self, target_path: Path) -> List[Path]:
+    def _find_files(self, target_path: Path) -> list[Path]:
         """Find all files that should be scanned."""
         files = []
 
         for root, dirs, filenames in os.walk(target_path):
             # Filter out skipped directories
-            dirs[:] = [d for d in dirs if d not in self.SKIP_PATTERNS
-                      and not d.startswith(".")]
+            dirs[:] = [d for d in dirs if d not in self.SKIP_PATTERNS and not d.startswith(".")]
 
             for filename in filenames:
                 # Check if file should be scanned
@@ -200,9 +211,9 @@ class SecretScanner(BaseScanner):
         suffix = Path(filename).suffix
         return suffix in self.SCAN_EXTENSIONS
 
-    def _scan_file(self, file_path: Path) -> List[Finding]:
+    def _scan_file(self, file_path: Path) -> list[Finding]:
         """Scan a single file for secrets."""
-        findings = []
+        findings: list[Finding] = []
 
         try:
             content = file_path.read_text(errors="ignore")
@@ -210,9 +221,9 @@ class SecretScanner(BaseScanner):
             return findings
 
         # Track found secrets to avoid duplicates
-        found_secrets: Set[str] = set()
+        found_secrets: set[str] = set()
 
-        for secret_type, pattern_info in self.SECRET_PATTERNS.items():
+        for _secret_type, pattern_info in self.SECRET_PATTERNS.items():
             matches = re.finditer(pattern_info["pattern"], content)
 
             for match in matches:
@@ -226,16 +237,18 @@ class SecretScanner(BaseScanner):
                 found_secrets.add(redacted)
 
                 # Find line number
-                line_num = content[:match.start()].count("\n") + 1
+                line_num = content[: match.start()].count("\n") + 1
 
-                findings.append(Finding(
-                    title=pattern_info["title"],
-                    severity=pattern_info["severity"],
-                    description=f"{pattern_info['description']} Value: {redacted}",
-                    location=f"{file_path}:{line_num}",
-                    remediation="Remove the secret from the codebase and rotate it immediately. "
-                               "Use environment variables or a secrets manager instead.",
-                ))
+                findings.append(
+                    Finding(
+                        title=pattern_info["title"],
+                        severity=pattern_info["severity"],
+                        description=f"{pattern_info['description']} Value: {redacted}",
+                        location=f"{file_path}:{line_num}",
+                        remediation="Remove the secret from the codebase and rotate it immediately. "
+                        "Use environment variables or a secrets manager instead.",
+                    )
+                )
 
         return findings
 

@@ -62,11 +62,18 @@ jobs:
           PYTHONPATH=src python -c "
           from auditor.scanners.secret_scanner import SecretScanner
           scanner = SecretScanner()
-          result = scanner.scan('.')
-          critical = [f for f in result.findings if f.severity.value == 'critical']
+          # Scan src/ and config files only; tests/ and pocs/ contain
+          # intentional synthetic tokens for testing and are excluded.
+          findings = []
+          for scan_dir in ['src/', 'skill/', 'docs/', '.github/']:
+              import os
+              if os.path.isdir(scan_dir):
+                  result = scanner.scan(scan_dir)
+                  findings.extend(result.findings)
+          critical = [f for f in findings if f.severity.value == 'critical']
           if critical:
               for f in critical:
                   print(f'FAIL: {f.title} at {f.location}')
               exit(1)
-          print('OK: No critical secrets found in codebase')
+          print('OK: No critical secrets found in source code')
           "
