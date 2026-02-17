@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.png" alt="OpenClaw Security Auditor" width="100%">
+  <img src="docs/assets/banner-v2.png" alt="OpenClaw Security Auditor" width="100%">
 </p>
 
 <h3 align="center">Security auditing toolkit for OpenClaw deployments</h3>
