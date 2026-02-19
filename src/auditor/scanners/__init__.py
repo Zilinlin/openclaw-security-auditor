@@ -1,5 +1,7 @@
 """Security scanners for OpenClaw."""
 
+from __future__ import annotations
+
 from .base import BaseScanner, Finding, ScanResult, Severity
 from .config_scanner import ConfigScanner
 from .cve_scanner import CVEScanner
@@ -18,7 +20,9 @@ __all__ = [
 ]
 
 # Registry of available scanners
-SCANNERS = {
+SCANNERS: dict[
+    str, type[ConfigScanner] | type[CVEScanner] | type[SecretScanner] | type[NetworkScanner]
+] = {
     "config": ConfigScanner,
     "cve": CVEScanner,
     "secrets": SecretScanner,

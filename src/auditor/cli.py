@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import sys
+from collections.abc import Sequence
 
 from .detectors import (
     DETECTORS,
@@ -113,7 +114,7 @@ def print_finding(finding: Finding | DetectorFinding, index: int) -> None:
             print(f"     - {ref}")
 
 
-def print_summary(results: list[ScanResult | DetectorResult]) -> None:
+def print_summary(results: Sequence[ScanResult | DetectorResult]) -> None:
     """Print scan summary."""
     total_findings = sum(len(r.findings) for r in results)
 
@@ -166,7 +167,7 @@ def print_summary(results: list[ScanResult | DetectorResult]) -> None:
         )
 
 
-def print_detector_summary(results: list[DetectorResult]) -> None:
+def print_detector_summary(results: Sequence[DetectorResult]) -> None:
     """Print detector-specific summary."""
     vulnerable_count = sum(1 for r in results if r.is_vulnerable)
     total = len(results)
@@ -638,7 +639,7 @@ SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
 _collected_results: list = []
 
 
-def check_severity_threshold(results: list[ScanResult | DetectorResult], fail_on: str) -> int:
+def check_severity_threshold(results: Sequence[ScanResult | DetectorResult], fail_on: str) -> int:
     """Check if any findings meet or exceed the severity threshold.
 
     Args:
