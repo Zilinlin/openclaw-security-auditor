@@ -5,7 +5,7 @@
 <h3 align="center">Security auditing toolkit for OpenClaw deployments</h3>
 
 <p align="center">
-  Detect misconfigurations, known CVEs, exposed secrets, and runtime threats — before attackers do.
+  Detect misconfigurations, known CVEs, exposed secrets, privilege escalation, supply chain risks, and runtime threats — before attackers do.
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue" alt="Python"></a>
   <img src="https://img.shields.io/badge/CVEs%20Detected-5-critical" alt="CVEs Detected">
-  <img src="https://img.shields.io/badge/Scanners-4%20Static%20|%204%20Dynamic-green" alt="Scanners">
+  <img src="https://img.shields.io/badge/Scanners-6%20Static%20|%206%20Dynamic-green" alt="Scanners">
 </p>
 
 ---
@@ -37,13 +37,17 @@ This tool provides a comprehensive security audit pipeline — from static confi
 - **CVE Scanner** — Checks your OpenClaw version against 5 known CVEs with severity scoring
 - **Secret Scanner** — Finds exposed API keys, Slack tokens (`xapp-*`, `xoxb-*`, `xoxp-*`), AWS keys, private keys
 - **Network Scanner** — Detects public-facing exposure (`0.0.0.0` binds, open ports, missing TLS)
+- **Privilege Scanner** — Analyzes agent configs for excessive permissions, missing approval gates, unrestricted tools, disabled sandboxes ([OWASP ASI02/ASI06](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/))
+- **SBOM Scanner** — Supply chain analysis for MCP servers, skills/plugins, and model configs — detects unpinned versions, unverified sources, missing integrity checks ([OWASP ASI03](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/))
 
 ### Detect — Dynamic Probing
 
 - **WebSocket Origin Bypass** — Tests for Cross-Site WebSocket Hijacking ([CVE-2026-25253](https://nvd.nist.gov/vuln/detail/CVE-2026-25253))
 - **Auth Weakness Probe** — Tests authentication enforcement, default credentials, token scope
 - **API Hook Bypass** — Verifies security hooks are active on HTTP endpoints
-- **Prompt Injection Probe** — Tests agent resilience with 15+ categorized payloads
+- **Prompt Injection Probe** — Tests agent resilience with 15+ categorized direct injection payloads
+- **Indirect Injection Probe** — Tests agent resilience against injections hidden in data sources: documents, tool outputs, RAG context, invisible instructions ([OWASP ASI01/LLM01](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/), [CVE-2026-24763](https://nvd.nist.gov/vuln/detail/CVE-2026-24763))
+- **Output Safety Probe** — Checks if LLM outputs contain unsafe code patterns (XSS, SQLi, command injection, SSRF, path traversal) that could harm downstream systems ([OWASP LLM05](https://owasp.org/www-project-top-10-for-large-language-model-applications/))
 
 ### Defend — Runtime Monitoring
 
@@ -85,6 +89,18 @@ openclaw-audit secrets /path/to/project
 
 # Test network exposure
 openclaw-audit network --host localhost --port 18789
+
+# Analyze agent privilege boundaries
+openclaw-audit privilege /path/to/project
+
+# Generate supply chain SBOM
+openclaw-audit sbom /path/to/project
+
+# Test for indirect prompt injection
+openclaw-audit detect-indirect-injection --host localhost --port 19020
+
+# Test output safety
+openclaw-audit detect-output-safety --host localhost --port 19030
 ```
 
 ### Example Output
@@ -301,13 +317,13 @@ repos:
 ```
 openclaw-security-auditor/
 ├── src/auditor/
-│   ├── scanners/           # Static analysis (config, CVE, secrets, network)
-│   ├── detectors/          # Dynamic probing (WebSocket, auth, API, injection)
+│   ├── scanners/           # Static analysis (config, CVE, secrets, network, privilege, SBOM)
+│   ├── detectors/          # Dynamic probing (WebSocket, auth, API, injection, output safety)
 │   └── payloads/           # Categorized prompt injection payloads
 ├── skill/                  # OpenClaw runtime monitoring skill
 │   └── monitor/            # Integrity, canary, anomaly, CVE feed modules
 ├── pocs/                   # PoCs for disclosed CVEs (patched only)
-├── tests/                  # 237 tests
+├── tests/                  # 315 tests, 73% coverage
 └── docs/                   # Security research & disclosure policy
 ```
 
@@ -344,6 +360,9 @@ Contributions are welcome! To add a new scanner:
 | 10 | GitHub — ClawSec Security Suite | https://github.com/prompt-security/clawsec |
 | 11 | GitHub — Runtime Prompt Injection Defenses | https://github.com/openclaw/openclaw/issues/4840 |
 | 12 | GBHackers — OpenClaw Security Update | https://gbhackers.com/openclaw-2026-2-12-released/ |
+| 13 | OWASP — Top 10 for Agentic Applications (2026) | https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/ |
+| 14 | OWASP — Top 10 for LLM Applications | https://owasp.org/www-project-top-10-for-large-language-model-applications/ |
+| 15 | CrowdStrike — Indirect Prompt Injection Research | https://www.crowdstrike.com/blog/indirect-prompt-injection-attacks/ |
 
 ## Acknowledgments
 

@@ -11,6 +11,8 @@ from .base import (
     DetectorSeverity,
     VulnerabilityStatus,
 )
+from .indirect_injection_detector import IndirectInjectionDetector
+from .output_safety_detector import OutputSafetyDetector
 from .prompt_injection_detector import PromptInjectionDetector
 from .websocket_detector import WebSocketOriginDetector
 
@@ -20,6 +22,8 @@ __all__ = [
     "DetectorFinding",
     "WebSocketOriginDetector",
     "PromptInjectionDetector",
+    "IndirectInjectionDetector",
+    "OutputSafetyDetector",
     "APIHookBypassDetector",
     "AuthWeaknessDetector",
     "DetectorSeverity",
@@ -31,11 +35,15 @@ DETECTORS: dict[
     str,
     type[WebSocketOriginDetector]
     | type[PromptInjectionDetector]
+    | type[IndirectInjectionDetector]
+    | type[OutputSafetyDetector]
     | type[APIHookBypassDetector]
     | type[AuthWeaknessDetector],
 ] = {
     "websocket": WebSocketOriginDetector,
     "prompt_injection": PromptInjectionDetector,
+    "indirect_injection": IndirectInjectionDetector,
+    "output_safety": OutputSafetyDetector,
     "api_bypass": APIHookBypassDetector,
     "auth": AuthWeaknessDetector,
 }

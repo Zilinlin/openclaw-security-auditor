@@ -12,6 +12,8 @@ from .detectors import (
     DETECTORS,
     APIHookBypassDetector,
     AuthWeaknessDetector,
+    IndirectInjectionDetector,
+    OutputSafetyDetector,
     PromptInjectionDetector,
     WebSocketOriginDetector,
 )
@@ -21,6 +23,8 @@ from .scanners import (
     ConfigScanner,
     CVEScanner,
     NetworkScanner,
+    PrivilegeScanner,
+    SBOMScanner,
     SecretScanner,
 )
 from .scanners.base import Finding, ScanResult, Severity
@@ -513,6 +517,128 @@ def cmd_detect_auth(args: argparse.Namespace) -> int:
     return check_severity_threshold([result], args.fail_on)
 
 
+def cmd_detect_indirect_injection(args: argparse.Namespace) -> int:
+    """Run indirect prompt injection detector."""
+    detector = IndirectInjectionDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}{args.endpoint}")
+        if args.categories:
+            print(f"Categories: {args.categories}")
+
+    categories = args.categories.split(",") if args.categories else None
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+        endpoint=args.endpoint,
+        auth_token=args.token,
+        categories=categories,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+        if result.metadata.get("vulnerable_count"):
+            print(
+                colorize(
+                    f"\nVulnerable to {result.metadata['vulnerable_count']}/{result.metadata['total_tested']} indirect payloads",
+                    Colors.RED,
+                )
+            )
+
+    _collected_results.append(result)
+    return check_severity_threshold([result], args.fail_on)
+
+
+def cmd_detect_output_safety(args: argparse.Namespace) -> int:
+    """Run output safety detector."""
+    detector = OutputSafetyDetector()
+
+    if not args.json:
+        print(f"\n{colorize('Running:', Colors.CYAN)} {detector.description}...")
+        print(f"Target: {args.host}:{args.port}{args.endpoint}")
+        if args.categories:
+            print(f"Categories: {args.categories}")
+
+    categories = args.categories.split(",") if args.categories else None
+
+    result = detector.detect(
+        host=args.host,
+        port=args.port,
+        endpoint=args.endpoint,
+        auth_token=args.token,
+        categories=categories,
+    )
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if result.errors:
+            for error in result.errors:
+                print(colorize(f"Error: {error}", Colors.RED))
+
+        if result.metadata.get("unsafe_count"):
+            print(
+                colorize(
+                    f"\nUnsafe outputs: {result.metadata['unsafe_count']}/{result.metadata['total_tested']} test cases",
+                    Colors.RED,
+                )
+            )
+
+    _collected_results.append(result)
+    return check_severity_threshold([result], args.fail_on)
+
+
+def cmd_privilege(args: argparse.Namespace) -> int:
+    """Run privilege boundary scanner."""
+    scanner = PrivilegeScanner()
+    result = scanner.scan(args.target)
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if not result.findings:
+            print(colorize("\n✓ No privilege boundary issues found", Colors.GREEN))
+        print_summary([result])
+
+    _collected_results.append(result)
+    return check_severity_threshold([result], args.fail_on)
+
+
+def cmd_sbom(args: argparse.Namespace) -> int:
+    """Run SBOM supply chain scanner."""
+    scanner = SBOMScanner()
+    result = scanner.scan(args.target)
+
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        for i, finding in enumerate(result.findings, 1):
+            print_finding(finding, i)
+
+        if not result.findings:
+            print(colorize("\n✓ No supply chain issues found", Colors.GREEN))
+        print_summary([result])
+
+    _collected_results.append(result)
+    return check_severity_threshold([result], args.fail_on)
+
+
 # =============================================================================
 # SARIF OUTPUT
 # =============================================================================
@@ -706,7 +832,7 @@ def main() -> int:
     scan_parser.add_argument("target", help="Path to OpenClaw installation")
     scan_parser.add_argument(
         "--checks",
-        help="Comma-separated list of checks (config,cve,secrets,network)",
+        help="Comma-separated list of checks (config,cve,secrets,network,privilege,sbom)",
     )
     scan_parser.add_argument("--version", help="OpenClaw version (for CVE checks)")
     scan_parser.add_argument("--host", help="Host for network checks")
@@ -757,7 +883,7 @@ def main() -> int:
     detect_parser.add_argument("--token", help="Authentication token")
     detect_parser.add_argument(
         "--detectors",
-        help="Comma-separated list (websocket,prompt_injection,api_bypass,auth)",
+        help="Comma-separated list (websocket,prompt_injection,indirect_injection,output_safety,api_bypass,auth)",
     )
 
     # detect-websocket command
@@ -818,6 +944,62 @@ def main() -> int:
         help="Target port (default: 18789)",
     )
 
+    # detect-indirect-injection command
+    indirect_parser = subparsers.add_parser(
+        "detect-indirect-injection",
+        help="Test indirect prompt injection via data sources",
+    )
+    indirect_parser.add_argument("--host", required=True, help="Target host")
+    indirect_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    indirect_parser.add_argument(
+        "--endpoint",
+        default="/v1/chat/completions",
+        help="API endpoint (default: /v1/chat/completions)",
+    )
+    indirect_parser.add_argument("--token", help="Authentication token")
+    indirect_parser.add_argument(
+        "--categories",
+        help="Comma-separated categories to test",
+    )
+
+    # detect-output-safety command
+    output_safety_parser = subparsers.add_parser(
+        "detect-output-safety",
+        help="Test if agent outputs are safely sanitized",
+    )
+    output_safety_parser.add_argument("--host", required=True, help="Target host")
+    output_safety_parser.add_argument(
+        "--port",
+        type=int,
+        default=18789,
+        help="Target port (default: 18789)",
+    )
+    output_safety_parser.add_argument(
+        "--endpoint",
+        default="/v1/chat/completions",
+        help="API endpoint (default: /v1/chat/completions)",
+    )
+    output_safety_parser.add_argument("--token", help="Authentication token")
+    output_safety_parser.add_argument(
+        "--categories",
+        help="Comma-separated categories to test",
+    )
+
+    # privilege command
+    privilege_parser = subparsers.add_parser(
+        "privilege", help="Scan agent configs for privilege boundary issues"
+    )
+    privilege_parser.add_argument("target", help="Path to OpenClaw installation")
+
+    # sbom command
+    sbom_parser = subparsers.add_parser("sbom", help="Analyze agent dependency supply chain")
+    sbom_parser.add_argument("target", help="Path to OpenClaw installation")
+
     # =========================================================================
     # PARSE AND EXECUTE
     # =========================================================================
@@ -845,10 +1027,14 @@ def main() -> int:
         "cve": cmd_cve,
         "secrets": cmd_secrets,
         "network": cmd_network,
+        "privilege": cmd_privilege,
+        "sbom": cmd_sbom,
         # Dynamic detection
         "detect": cmd_detect,
         "detect-websocket": cmd_detect_websocket,
         "detect-injection": cmd_detect_injection,
+        "detect-indirect-injection": cmd_detect_indirect_injection,
+        "detect-output-safety": cmd_detect_output_safety,
         "detect-api-bypass": cmd_detect_api_bypass,
         "detect-auth": cmd_detect_auth,
     }
