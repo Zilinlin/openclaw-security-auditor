@@ -11,6 +11,7 @@ References:
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -24,6 +25,87 @@ class PrivilegeScanner(BaseScanner):
 
     name = "privilege"
     description = "Scan agent configuration for privilege escalation, excessive permissions, and missing access controls"
+
+    # Built-in sensitive path patterns (normalized to lowercase for matching)
+    # These are checked against allowed_paths in agent tool configs
+    SENSITIVE_PATHS: dict[str, dict] = {
+        "~/.ssh": {
+            "severity": Severity.CRITICAL,
+            "description": "SSH private keys — full server access if exfiltrated",
+        },
+        "~/.gnupg": {
+            "severity": Severity.CRITICAL,
+            "description": "GPG keys — can sign/decrypt as the user",
+        },
+        "~/.aws": {
+            "severity": Severity.CRITICAL,
+            "description": "AWS credentials — cloud account takeover",
+        },
+        "~/.config/gcloud": {
+            "severity": Severity.CRITICAL,
+            "description": "GCP credentials — cloud account takeover",
+        },
+        "~/.azure": {
+            "severity": Severity.CRITICAL,
+            "description": "Azure credentials — cloud account takeover",
+        },
+        "~/.kube": {
+            "severity": Severity.HIGH,
+            "description": "Kubernetes configs — cluster access",
+        },
+        "/etc/shadow": {
+            "severity": Severity.CRITICAL,
+            "description": "System password hashes",
+        },
+        "/etc/passwd": {
+            "severity": Severity.HIGH,
+            "description": "System user accounts",
+        },
+        "/etc": {
+            "severity": Severity.HIGH,
+            "description": "System configuration directory",
+        },
+        "~/.docker": {
+            "severity": Severity.HIGH,
+            "description": "Docker credentials and configs",
+        },
+        "~/.npmrc": {
+            "severity": Severity.HIGH,
+            "description": "npm registry credentials",
+        },
+        "~/.pypirc": {
+            "severity": Severity.HIGH,
+            "description": "PyPI upload credentials",
+        },
+        "~/.gitconfig": {
+            "severity": Severity.MEDIUM,
+            "description": "Git configuration with potential credentials",
+        },
+        "~/.git-credentials": {
+            "severity": Severity.CRITICAL,
+            "description": "Plaintext Git credentials",
+        },
+        "~/.netrc": {
+            "severity": Severity.CRITICAL,
+            "description": "Plaintext network credentials",
+        },
+        "~/.bash_history": {
+            "severity": Severity.MEDIUM,
+            "description": "Command history may contain secrets",
+        },
+        "~/.zsh_history": {
+            "severity": Severity.MEDIUM,
+            "description": "Command history may contain secrets",
+        },
+        "/": {
+            "severity": Severity.HIGH,
+            "description": "Root filesystem — equivalent to full disk access",
+        },
+        "/var": {
+            "severity": Severity.MEDIUM,
+            "description": "System variable data — logs, spool, databases",
+        },
+    }
 
     # Dangerous tool names that require restriction configs
     DANGEROUS_TOOLS: dict[str, dict] = {
@@ -152,6 +234,9 @@ class PrivilegeScanner(BaseScanner):
 
         Args:
             target: Path to OpenClaw installation directory
+            sensitive_paths: Additional sensitive paths to flag (list of path strings)
+            allowed_paths: Whitelist of allowed paths — any configured path outside
+                          this list will be flagged as a violation
 
         Returns:
             ScanResult with privilege findings
@@ -163,11 +248,19 @@ class PrivilegeScanner(BaseScanner):
             result.errors.append(f"Target path does not exist: {target}")
             return result
 
+        # Merge user-provided sensitive paths with built-in defaults
+        extra_sensitive: list[str] = kwargs.get("sensitive_paths", [])
+        allowed_only: list[str] = kwargs.get("allowed_paths", [])
+
         config_files = self._find_config_files(target_path)
 
         for config_file in config_files:
             result.scanned_items += 1
-            findings = self._scan_file(config_file)
+            findings = self._scan_file(
+                config_file,
+                extra_sensitive=extra_sensitive,
+                allowed_only=allowed_only,
+            )
             result.findings.extend(findings)
 
         return result
@@ -191,7 +284,12 @@ class PrivilegeScanner(BaseScanner):
 
         return found_files
 
-    def _scan_file(self, file_path: Path) -> list[Finding]:
+    def _scan_file(
+        self,
+        file_path: Path,
+        extra_sensitive: list[str] | None = None,
+        allowed_only: list[str] | None = None,
+    ) -> list[Finding]:
         """Scan a single config file for privilege issues."""
         findings: list[Finding] = []
 
@@ -217,6 +315,9 @@ class PrivilegeScanner(BaseScanner):
         findings.extend(self._check_dangerous_tools(config, file_path))
         findings.extend(self._check_missing_approval_gates(config, file_path))
         findings.extend(self._check_unrestricted_filesystem(config, file_path))
+        findings.extend(self._check_sensitive_paths(config, file_path, extra_sensitive or []))
+        if allowed_only:
+            findings.extend(self._check_allowed_paths_policy(config, file_path, allowed_only))
         findings.extend(self._check_unrestricted_network(config, file_path))
         findings.extend(self._check_missing_rate_limits(config, file_path))
         findings.extend(self._check_overly_broad_scopes(config, file_path))
@@ -383,6 +484,143 @@ class PrivilegeScanner(BaseScanner):
                         "the entire filesystem.",
                         location=str(file_path),
                         remediation="Replace wildcard with specific directory paths.",
+                        references=[
+                            "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+                        ],
+                    )
+                )
+
+        return findings
+
+    @staticmethod
+    def _normalize_path(path_str: str) -> str:
+        """Normalize a path for comparison: expand ~ and resolve."""
+        expanded = os.path.expanduser(path_str)
+        # Don't resolve if path doesn't exist — just normalize separators
+        return os.path.normpath(expanded)
+
+    def _collect_configured_paths(self, config: dict) -> list[str]:
+        """Extract all allowed_paths from tool configs."""
+        paths: list[str] = []
+        tools = self._get_tools_list(config)
+        for tool in tools:
+            allowed = tool.get("allowed_paths", tool.get("allowedPaths", []))
+            if isinstance(allowed, str):
+                if allowed != "*":
+                    paths.append(allowed)
+            elif isinstance(allowed, list):
+                for p in allowed:
+                    if isinstance(p, str) and p != "*":
+                        paths.append(p)
+
+        # Also check top-level permissions.filesystem if it's a path list
+        permissions = config.get("permissions", {})
+        if isinstance(permissions, dict):
+            fs_paths = permissions.get("allowed_paths", permissions.get("allowedPaths", []))
+            if isinstance(fs_paths, list):
+                for p in fs_paths:
+                    if isinstance(p, str) and p != "*":
+                        paths.append(p)
+
+        return paths
+
+    def _check_sensitive_paths(
+        self,
+        config: dict,
+        file_path: Path,
+        extra_sensitive: list[str],
+    ) -> list[Finding]:
+        """Check if configured paths include sensitive directories.
+
+        Combines built-in SENSITIVE_PATHS with user-provided extra paths.
+        """
+        findings: list[Finding] = []
+        configured_paths = self._collect_configured_paths(config)
+        if not configured_paths:
+            return findings
+
+        # Build effective sensitive map: built-in + user extras
+        sensitive_map: dict[str, dict] = dict(self.SENSITIVE_PATHS)
+        for extra in extra_sensitive:
+            if extra not in sensitive_map:
+                sensitive_map[extra] = {
+                    "severity": Severity.HIGH,
+                    "description": "User-specified sensitive path",
+                }
+
+        for configured in configured_paths:
+            norm_configured = self._normalize_path(configured)
+
+            for sensitive_pattern, info in sensitive_map.items():
+                norm_sensitive = self._normalize_path(sensitive_pattern)
+
+                # Check: configured path IS the sensitive path,
+                # OR configured path is a PARENT of the sensitive path
+                # (e.g., /home/user covers /home/user/.ssh)
+                is_match = norm_configured == norm_sensitive
+                is_parent = norm_sensitive.startswith(norm_configured + os.sep)
+                is_child = norm_configured.startswith(norm_sensitive + os.sep)
+
+                if is_match or is_parent or is_child:
+                    findings.append(
+                        Finding(
+                            title=f"Sensitive path accessible: {configured}",
+                            severity=info["severity"],
+                            description=f"Agent has access to '{configured}' which "
+                            f"{'includes' if is_parent else 'is'} "
+                            f"sensitive location '{sensitive_pattern}': "
+                            f"{info['description']}.",
+                            location=str(file_path),
+                            remediation="Restrict allowed_paths to only the specific "
+                            "directories the agent needs. Avoid granting access to "
+                            "home directories, credential stores, or system paths.",
+                            references=[
+                                "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+                            ],
+                        )
+                    )
+                    break  # One finding per configured path is enough
+
+        return findings
+
+    def _check_allowed_paths_policy(
+        self,
+        config: dict,
+        file_path: Path,
+        allowed_only: list[str],
+    ) -> list[Finding]:
+        """Check if configured paths fall outside the user-defined whitelist.
+
+        Every path in the agent config's allowed_paths must be within one of
+        the user-specified allowed directories.
+        """
+        findings: list[Finding] = []
+        configured_paths = self._collect_configured_paths(config)
+        if not configured_paths:
+            return findings
+
+        norm_allowed = [self._normalize_path(p) for p in allowed_only]
+
+        for configured in configured_paths:
+            norm_configured = self._normalize_path(configured)
+
+            is_within_policy = False
+            for allowed in norm_allowed:
+                if norm_configured == allowed or norm_configured.startswith(allowed + os.sep):
+                    is_within_policy = True
+                    break
+
+            if not is_within_policy:
+                findings.append(
+                    Finding(
+                        title=f"Path outside allowed policy: {configured}",
+                        severity=Severity.HIGH,
+                        description=f"Agent is configured to access '{configured}' which "
+                        f"is outside the allowed directories: "
+                        f"{', '.join(allowed_only)}.",
+                        location=str(file_path),
+                        remediation="Remove this path from the agent's allowed_paths or "
+                        "add it to your security policy's allowed directories.",
                         references=[
                             "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
                         ],

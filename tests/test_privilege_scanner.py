@@ -450,6 +450,293 @@ class TestPrivilegeScanner(unittest.TestCase):
 
         self.assertEqual(result.scanned_items, 2)
 
+    # =========================================================================
+    # Sensitive path detection (built-in)
+    # =========================================================================
+
+    def test_detect_ssh_path(self):
+        """Detect tool with access to ~/.ssh."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - ~/.ssh\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+        self.assertEqual(sensitive_findings[0].severity, Severity.CRITICAL)
+        self.assertIn(".ssh", sensitive_findings[0].description)
+
+    def test_detect_aws_credentials_path(self):
+        """Detect tool with access to ~/.aws."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - ~/.aws\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+        self.assertIn("cloud", sensitive_findings[0].description.lower())
+
+    def test_detect_etc_path(self):
+        """Detect tool with access to /etc."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /etc\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+
+    def test_detect_home_covers_ssh(self):
+        """Home directory access should flag because it covers ~/.ssh etc."""
+        import os
+
+        home = os.path.expanduser("~")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    f"    allowed_paths:\n"
+                    f"      - {home}\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+
+    def test_safe_path_no_sensitive_finding(self):
+        """Non-sensitive path should not trigger sensitive path finding."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/docs\n"
+                    "      - /tmp/workspace\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertEqual(len(sensitive_findings), 0)
+
+    def test_user_extra_sensitive_path(self):
+        """User-specified sensitive path should be flagged."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/secret-reports\n"
+                )
+            result = self.scanner.scan(tmpdir, sensitive_paths=["/data/secret-reports"])
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+
+    def test_root_path_sensitive(self):
+        """Root path / should be flagged as sensitive."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        self.assertTrue(len(sensitive_findings) > 0)
+
+    # =========================================================================
+    # Allowed path whitelist (policy enforcement)
+    # =========================================================================
+
+    def test_path_within_policy_no_finding(self):
+        """Path within allowed policy should not be flagged."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/docs\n"
+                    "      - /data/docs/reports\n"
+                )
+            result = self.scanner.scan(tmpdir, allowed_paths=["/data/docs", "/tmp"])
+
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        self.assertEqual(len(policy_findings), 0)
+
+    def test_path_outside_policy_flagged(self):
+        """Path outside allowed policy should be flagged."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/docs\n"
+                    "      - /var/log\n"
+                )
+            result = self.scanner.scan(tmpdir, allowed_paths=["/data/docs"])
+
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        self.assertTrue(len(policy_findings) > 0)
+        self.assertIn("/var/log", policy_findings[0].title)
+
+    def test_multiple_paths_mixed_policy(self):
+        """Mix of compliant and non-compliant paths."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/docs\n"
+                    "      - /home/user/secrets\n"
+                    "      - /tmp/workspace/output\n"
+                )
+            result = self.scanner.scan(tmpdir, allowed_paths=["/data/docs", "/tmp/workspace"])
+
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        # Only /home/user/secrets should be flagged
+        self.assertEqual(len(policy_findings), 1)
+        self.assertIn("/home/user/secrets", policy_findings[0].title)
+
+    def test_no_allowed_paths_no_policy_findings(self):
+        """Without --allowed-paths, no policy findings should appear."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /anywhere/at/all\n"
+                )
+            result = self.scanner.scan(tmpdir)
+
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        self.assertEqual(len(policy_findings), 0)
+
+    def test_subdirectory_within_policy(self):
+        """Subdirectory of an allowed path should pass policy check."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - /data/docs/reports/2026\n"
+                )
+            result = self.scanner.scan(tmpdir, allowed_paths=["/data/docs"])
+
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        self.assertEqual(len(policy_findings), 0)
+
+    # =========================================================================
+    # Combined: sensitive + policy
+    # =========================================================================
+
+    def test_sensitive_and_policy_both_fire(self):
+        """Both sensitive path and policy violation can fire together."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = tmpdir + "/config.yaml"
+            with open(config, "w") as f:
+                f.write(
+                    "agent:\n"
+                    "  name: TestAgent\n"
+                    "  approval_required: true\n"
+                    "tools:\n"
+                    "  - name: file_read\n"
+                    "    allowed_paths:\n"
+                    "      - ~/.ssh\n"
+                )
+            result = self.scanner.scan(tmpdir, allowed_paths=["/data/docs"])
+
+        sensitive_findings = [f for f in result.findings if "sensitive path" in f.title.lower()]
+        policy_findings = [
+            f for f in result.findings if "outside allowed policy" in f.title.lower()
+        ]
+        self.assertTrue(len(sensitive_findings) > 0)
+        self.assertTrue(len(policy_findings) > 0)
+
 
 if __name__ == "__main__":
     unittest.main()

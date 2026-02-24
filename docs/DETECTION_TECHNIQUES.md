@@ -138,6 +138,75 @@ def _is_public_ip(host: str) -> bool:
 
 ---
 
+### Privilege Scanner
+
+**Purpose**: Analyze agent configurations for excessive permissions, missing security controls, and sensitive path access.
+
+**Files Scanned**:
+- `agent.yaml`, `agent.yml`, `agent.json`
+- `openclaw.yaml`, `openclaw.yml`
+- `config.yaml`, `config.yml`
+
+#### Detection Rules
+
+| Check | Severity | Description | Reference |
+|-------|----------|-------------|-----------|
+| Dangerous tools unrestricted | Critical | `shell_exec`/`code_exec`/`file_delete` without restrictions | [OWASP ASI02](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) |
+| Missing approval gates | High | No `approval_required` or `human_in_loop` | [OWASP ASI06](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/) |
+| Filesystem unrestricted | High | `allowed_paths: "*"` or missing path limits | - |
+| Network unrestricted | High | No `allowed_domains` or network whitelist | - |
+| No sandbox config | High | `sandbox: false` or missing sandbox | - |
+| API scope too broad | High | Token scope contains `admin`/`write` | - |
+| Credentials exposed | High | Secrets directly in agent context | - |
+| Missing rate limits | Medium | No `rate_limits`/`max_actions` | - |
+
+#### Sensitive Path Detection
+
+Built-in sensitive path database (20+ paths) alerts when agent configs grant access to security-critical directories:
+
+| Path | Severity | Reason |
+|------|----------|--------|
+| `~/.ssh` | Critical | SSH private keys |
+| `~/.gnupg` | Critical | GPG private keys |
+| `~/.aws` | Critical | AWS credentials |
+| `~/.config/gcloud` | Critical | GCP credentials |
+| `~/.azure` | Critical | Azure credentials |
+| `~/.git-credentials` | Critical | Git credentials |
+| `~/.netrc` | Critical | Network credentials |
+| `/etc/shadow` | Critical | System password hashes |
+| `/etc` | High | System configuration |
+| `~/.kube` | High | Kubernetes config |
+| `~/.docker` | High | Docker config |
+| `/` | High | Root filesystem |
+| `~/.bash_history` | Medium | Shell history |
+
+Users can add custom sensitive paths via `--sensitive-paths`:
+```bash
+openclaw-audit privilege /path/to/project --sensitive-paths ~/.ssh,~/Documents/财务,/data/secrets
+```
+
+#### Allowed Path Whitelist Policy
+
+Enforce that all agent-configured paths fall within approved directories:
+```bash
+openclaw-audit privilege /path/to/project --allowed-paths /opt/app/data,/tmp
+```
+
+Any configured path outside the allowed directories generates a HIGH severity finding.
+
+**Technical Implementation**:
+```python
+# Path normalization handles ~, relative paths, cross-platform separators
+def _normalize_path(path: str) -> str:
+    return os.path.normpath(os.path.expanduser(path))
+
+# Detects parent/child relationships:
+# - configured "/Users/user" covers sensitive "~/.ssh" → alert
+# - configured "~/.ssh/keys" is within sensitive "~/.ssh" → alert
+```
+
+---
+
 ## Dynamic Vulnerability Detectors
 
 ### WebSocket Origin Bypass Detector

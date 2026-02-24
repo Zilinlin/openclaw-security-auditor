@@ -37,7 +37,7 @@ This tool provides a comprehensive security audit pipeline — from static confi
 - **CVE Scanner** — Checks your OpenClaw version against 5 known CVEs with severity scoring
 - **Secret Scanner** — Finds exposed API keys, Slack tokens (`xapp-*`, `xoxb-*`, `xoxp-*`), AWS keys, private keys
 - **Network Scanner** — Detects public-facing exposure (`0.0.0.0` binds, open ports, missing TLS)
-- **Privilege Scanner** — Analyzes agent configs for excessive permissions, missing approval gates, unrestricted tools, disabled sandboxes ([OWASP ASI02/ASI06](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/))
+- **Privilege Scanner** — Analyzes agent configs for excessive permissions, missing approval gates, unrestricted tools, disabled sandboxes, sensitive path access (e.g. `~/.ssh`, `~/.aws`), and allowed path policy enforcement ([OWASP ASI02/ASI06](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/))
 - **SBOM Scanner** — Supply chain analysis for MCP servers, skills/plugins, and model configs — detects unpinned versions, unverified sources, missing integrity checks ([OWASP ASI03](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/))
 
 ### Detect — Dynamic Probing
@@ -92,6 +92,12 @@ openclaw-audit network --host localhost --port 18789
 
 # Analyze agent privilege boundaries
 openclaw-audit privilege /path/to/project
+
+# Privilege scan with sensitive path alerts
+openclaw-audit privilege /path/to/project --sensitive-paths ~/.ssh,~/Documents/财务
+
+# Privilege scan with allowed path whitelist
+openclaw-audit privilege /path/to/project --allowed-paths /opt/app/data,/tmp
 
 # Generate supply chain SBOM
 openclaw-audit sbom /path/to/project
@@ -323,7 +329,7 @@ openclaw-security-auditor/
 ├── skill/                  # OpenClaw runtime monitoring skill
 │   └── monitor/            # Integrity, canary, anomaly, CVE feed modules
 ├── pocs/                   # PoCs for disclosed CVEs (patched only)
-├── tests/                  # 315 tests, 73% coverage
+├── tests/                  # 328 tests, 73% coverage
 └── docs/                   # Security research & disclosure policy
 ```
 

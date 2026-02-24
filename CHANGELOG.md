@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI pipeline with testing, linting, and security checks
 - SECURITY.md for vulnerability reporting
 - CHANGELOG.md for version tracking
+- **Privilege Scanner**: Sensitive path detection — alerts when agent configs grant access to sensitive directories (`~/.ssh`, `~/.aws`, `~/.gnupg`, `/etc/shadow`, etc.) with 20+ built-in sensitive paths
+- **Privilege Scanner**: Allowed path whitelist policy — users can specify `--allowed-paths` to enforce that all configured agent paths fall within approved directories
+- **Privilege Scanner**: Custom sensitive path injection via `--sensitive-paths` for organization-specific sensitive locations
+- 13 new tests for sensitive path and allowed path policy features (328 total)
 
 ## [0.1.1] - 2026-02-16
 

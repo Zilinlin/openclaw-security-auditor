@@ -604,7 +604,12 @@ def cmd_detect_output_safety(args: argparse.Namespace) -> int:
 def cmd_privilege(args: argparse.Namespace) -> int:
     """Run privilege boundary scanner."""
     scanner = PrivilegeScanner()
-    result = scanner.scan(args.target)
+    scan_kwargs: dict = {}
+    if hasattr(args, "sensitive_paths") and args.sensitive_paths:
+        scan_kwargs["sensitive_paths"] = [p.strip() for p in args.sensitive_paths.split(",")]
+    if hasattr(args, "allowed_paths") and args.allowed_paths:
+        scan_kwargs["allowed_paths"] = [p.strip() for p in args.allowed_paths.split(",")]
+    result = scanner.scan(args.target, **scan_kwargs)
 
     if args.json:
         print(json.dumps(result.to_dict(), indent=2))
@@ -995,6 +1000,20 @@ def main() -> int:
         "privilege", help="Scan agent configs for privilege boundary issues"
     )
     privilege_parser.add_argument("target", help="Path to OpenClaw installation")
+    privilege_parser.add_argument(
+        "--sensitive-paths",
+        help="Comma-separated list of additional sensitive paths to flag "
+        "(e.g., ~/Documents/财务,~/Desktop). Built-in sensitive paths "
+        "(~/.ssh, ~/.aws, /etc, etc.) are always checked.",
+        default=None,
+    )
+    privilege_parser.add_argument(
+        "--allowed-paths",
+        help="Comma-separated whitelist of allowed directories. Any agent "
+        "path outside this list will be flagged as a policy violation "
+        "(e.g., /data/docs,/tmp/workspace).",
+        default=None,
+    )
 
     # sbom command
     sbom_parser = subparsers.add_parser("sbom", help="Analyze agent dependency supply chain")
